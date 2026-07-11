@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MonsoonShield AI - Monsoon Preparedness & Citizen Assistance</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <i class="fas fa-cloud-rain"></i>
+                <span>MonsoonShield AI</span>
+            </div>
+            <div class="header-actions">
+                <select id="language-select" class="language-selector">
+                    <option value="english">English</option>
+                    <option value="hindi">हिंदी (Hindi)</option>
+                    <option value="tamil">தமிழ் (Tamil)</option>
+                    <option value="telugu">తెలుగు (Telugu)</option>
+                    <option value="bengali">বাংলা (Bengali)</option>
+                    <option value="marathi">मराठी (Marathi)</option>
+                    <option value="gujarati">ગુજરાતી (Gujarati)</option>
+                    <option value="kannada">ಕನ್ನಡ (Kannada)</option>
+                    <option value="malayalam">മലയാളം (Malayalam)</option>
+                    <option value="punjabi">ਪੰਜਾਬੀ (Punjabi)</option>
+                    <option value="odia">ଓଡ଼ିଆ (Odia)</option>
+                </select>
+                <button class="sos-btn" onclick="openSOSModal()">
+                    <i class="fas fa-exclamation-triangle"></i> SOS
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Sidebar Navigation -->
+            <nav class="sidebar">
+                <div class="nav-section">
+                    <h3>Features</h3>
+                    <button class="nav-btn active" data-mode="preparedness" onclick="setMode('preparedness')">
+                        <i class="fas fa-shield-alt"></i>
+                        <span>Preparedness</span>
+                    </button>
+                    <button class="nav-btn" data-mode="emergency" onclick="setMode('emergency')">
+                        <i class="fas fa-first-aid"></i>
+                        <span>Emergency Help</span>
+                    </button>
+                    <button class="nav-btn" data-mode="checklist" onclick="setMode('checklist')">
+                        <i class="fas fa-tasks"></i>
+                        <span>Checklists</span>
+                    </button>
+                    <button class="nav-btn" data-mode="travel" onclick="setMode('travel')">
+                        <i class="fas fa-route"></i>
+                        <span>Travel Advisory</span>
+                    </button>
+                    <button class="nav-btn" data-mode="health" onclick="setMode('health')">
+                        <i class="fas fa-heartbeat"></i>
+                        <span>Health Guide</span>
+                    </button>
+                    <button class="nav-btn" data-mode="realtime" onclick="setMode('realtime')">
+                        <i class="fas fa-cloud-sun-rain"></i>
+                        <span>Weather Alerts</span>
+                    </button>
+                    <button class="nav-btn" data-mode="recovery" onclick="setMode('recovery')">
+                        <i class="fas fa-tools"></i>
+                        <span>Recovery Help</span>
+                    </button>
+                </div>
+
+                <div class="nav-section">
+                    <h3>Quick Tools</h3>
+                    <button class="nav-btn tool-btn" onclick="openPersonalizedPlan()">
+                        <i class="fas fa-clipboard-list"></i>
+                        <span>My Plan</span>
+                    </button>
+                    <button class="nav-btn tool-btn" onclick="openCommunityPlan()">
+                        <i class="fas fa-users"></i>
+                        <span>Community</span>
+                    </button>
+                </div>
+
+                <div class="emergency-contacts">
+                    <h3>Emergency Contacts</h3>
+                    <div class="contact-item">
+                        <span>NDRF</span>
+                        <a href="tel:9711077372">9711077372</a>
+                    </div>
+                    <div class="contact-item">
+                        <span>Police</span>
+                        <a href="tel:100">100</a>
+                    </div>
+                    <div class="contact-item">
+                        <span>Ambulance</span>
+                        <a href="tel:102">102</a>
+                    </div>
+                    <div class="contact-item">
+                        <span>Fire</span>
+                        <a href="tel:101">101</a>
+                    </div>
+                    <div class="contact-item">
+                        <span>Disaster</span>
+                        <a href="tel:1078">1078</a>
+                    </div>
+                </div>
+            </nav>
+
+            <!-- Chat Area -->
+            <div class="chat-container">
+                <div class="mode-header">
+                    <div class="mode-info">
+                        <i class="fas fa-shield-alt mode-icon"></i>
+                        <div>
+                            <h2 id="mode-title">Preparedness Assistant</h2>
+                            <p id="mode-description">Get personalized monsoon preparedness guidance</p>
+                        </div>
+                    </div>
+                    <div class="context-badge" id="context-badge" style="display: none;">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <span id="context-location">Location set</span>
+                    </div>
+                </div>
+
+                <div class="chat-messages" id="chat-messages">
+                    <div class="welcome-message">
+                        <div class="welcome-icon">
+                            <i class="fas fa-cloud-rain"></i>
+                        </div>
+                        <h2>Welcome to MonsoonShield AI</h2>
+                        <p>Your AI-powered monsoon preparedness assistant. I can help you with:</p>
+                        <div class="feature-cards">
+                            <div class="feature-card" onclick="quickPrompt('How should I prepare my home for monsoon?')">
+                                <i class="fas fa-home"></i>
+                                <span>Home Preparation</span>
+                            </div>
+                            <div class="feature-card" onclick="quickPrompt('Create an emergency kit checklist for my family')">
+                                <i class="fas fa-box-open"></i>
+                                <span>Emergency Kit</span>
+                            </div>
+                            <div class="feature-card" onclick="quickPrompt('What health precautions should I take during monsoon?')">
+                                <i class="fas fa-medkit"></i>
+                                <span>Health Tips</span>
+                            </div>
+                            <div class="feature-card" onclick="quickPrompt('Is it safe to travel during heavy rain?')">
+                                <i class="fas fa-car"></i>
+                                <span>Travel Safety</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chat-input-area">
+                    <div class="input-container">
+                        <button class="attachment-btn" onclick="openContextModal()" title="Set your context">
+                            <i class="fas fa-cog"></i>
+                        </button>
+                        <textarea 
+                            id="chat-input" 
+                            placeholder="Ask about monsoon preparedness, safety tips, emergency guidance..."
+                            rows="1"
+                            onkeydown="handleKeyDown(event)"
+                        ></textarea>
+                        <button class="voice-btn" onclick="toggleVoiceInput()" id="voice-btn" title="Voice input">
+                            <i class="fas fa-microphone" id="voice-icon"></i>
+                        </button>
+                        <button class="send-btn" onclick="sendMessage()" id="send-btn">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                    <div class="input-hints">
+                        <span>Press Enter to send • Shift+Enter for new line • Click 🎤 for voice</span>
+                    </div>
+                    <div class="voice-status" id="voice-status" style="display: none;">
+                        <div class="voice-indicator">
+                            <span class="pulse-ring"></span>
+                            <i class="fas fa-microphone"></i>
+                        </div>
+                        <span>Listening... Speak now</span>
+                        <button onclick="stopVoiceInput()" class="stop-voice-btn">Stop</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- SOS Modal -->
+    <div class="modal" id="sos-modal">
+        <div class="modal-content sos-modal-content">
+            <div class="modal-header sos-header">
+                <h2><i class="fas fa-exclamation-triangle"></i> Emergency SOS</h2>
+                <button class="close-btn" onclick="closeSOSModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="emergency-contacts-grid">
+                    <a href="tel:9711077372" class="emergency-call-btn">
+                        <i class="fas fa-phone"></i>
+                        <span>NDRF</span>
+                        <small>9711077372</small>
+                    </a>
+                    <a href="tel:100" class="emergency-call-btn">
+                        <i class="fas fa-shield-alt"></i>
+                        <span>Police</span>
+                        <small>100</small>
+                    </a>
+                    <a href="tel:102" class="emergency-call-btn">
+                        <i class="fas fa-ambulance"></i>
+                        <span>Ambulance</span>
+                        <small>102</small>
+                    </a>
+                    <a href="tel:101" class="emergency-call-btn">
+                        <i class="fas fa-fire-extinguisher"></i>
+                        <span>Fire</span>
+                        <small>101</small>
+                    </a>
+                </div>
+                
+                <div class="sos-form">
+                    <h3>Get Immediate AI Guidance</h3>
+                    <select id="emergency-type">
+                        <option value="">Select Emergency Type</option>
+                        <option value="flooding">Flooding / Water Logging</option>
+                        <option value="landslide">Landslide</option>
+                        <option value="lightning">Lightning Strike</option>
+                        <option value="trapped">Trapped / Stranded</option>
+                        <option value="injury">Weather-related Injury</option>
+                        <option value="power-outage">Power Outage</option>
+                        <option value="other">Other Emergency</option>
+                    </select>
+                    <textarea id="emergency-situation" placeholder="Briefly describe your situation..."></textarea>
+                    <input type="text" id="emergency-location" placeholder="Your location">
+                    <button class="get-help-btn" onclick="getEmergencyHelp()">
+                        <i class="fas fa-hands-helping"></i> Get Immediate Guidance
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Context Modal -->
+    <div class="modal" id="context-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-cog"></i> Set Your Context</h2>
+                <button class="close-btn" onclick="closeContextModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-description">Help us provide personalized recommendations</p>
+                
+                <div class="form-group">
+                    <label>Location / City</label>
+                    <input type="text" id="context-location-input" placeholder="e.g., Mumbai, Chennai, Kolkata">
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Family Size</label>
+                        <select id="context-family-size">
+                            <option value="">Select</option>
+                            <option value="1">1 (Single)</option>
+                            <option value="2">2</option>
+                            <option value="3-4">3-4</option>
+                            <option value="5+">5+</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Housing Type</label>
+                        <select id="context-housing">
+                            <option value="">Select</option>
+                            <option value="apartment-high">Apartment (High Floor)</option>
+                            <option value="apartment-low">Apartment (Ground/Low)</option>
+                            <option value="independent-house">Independent House</option>
+                            <option value="villa">Villa/Bungalow</option>
+                            <option value="slum">Informal Settlement</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group checkbox-group">
+                        <label><input type="checkbox" id="context-children"> Children in household</label>
+                    </div>
+                    <div class="form-group checkbox-group">
+                        <label><input type="checkbox" id="context-elderly"> Elderly members</label>
+                    </div>
+                    <div class="form-group checkbox-group">
+                        <label><input type="checkbox" id="context-pets"> Pets</label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Any Health Conditions</label>
+                    <input type="text" id="context-health" placeholder="e.g., Asthma, Diabetes, None">
+                </div>
+
+                <button class="save-context-btn" onclick="saveContext()">
+                    <i class="fas fa-save"></i> Save Context
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Personalized Plan Modal -->
+    <div class="modal" id="plan-modal">
+        <div class="modal-content large-modal">
+            <div class="modal-header">
+                <h2><i class="fas fa-clipboard-list"></i> Create Personalized Plan</h2>
+                <button class="close-btn" onclick="closePlanModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="plan-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Your Location *</label>
+                            <input type="text" id="plan-location" placeholder="City / Area">
+                        </div>
+                        <div class="form-group">
+                            <label>Family Size *</label>
+                            <input type="number" id="plan-family-size" min="1" max="20" value="4">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Housing Type *</label>
+                            <select id="plan-housing">
+                                <option value="apartment">Apartment</option>
+                                <option value="house">Independent House</option>
+                                <option value="villa">Villa/Bungalow</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Floor Level</label>
+                            <select id="plan-floor">
+                                <option value="ground">Ground Floor</option>
+                                <option value="1-2">1st-2nd Floor</option>
+                                <option value="3+">3rd Floor & Above</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row checkbox-row">
+                        <label><input type="checkbox" id="plan-children"> Children</label>
+                        <label><input type="checkbox" id="plan-elderly"> Elderly</label>
+                        <label><input type="checkbox" id="plan-pets"> Pets</label>
+                        <label><input type="checkbox" id="plan-basement"> Has Basement</label>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Budget (₹)</label>
+                            <select id="plan-budget">
+                                <option value="5000">Up to ₹5,000</option>
+                                <option value="10000">₹5,000 - ₹10,000</option>
+                                <option value="25000">₹10,000 - ₹25,000</option>
+                                <option value="50000">₹25,000+</option>
+                                <option value="flexible">Flexible</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Vehicle</label>
+                            <select id="plan-vehicle">
+                                <option value="none">None</option>
+                                <option value="two-wheeler">Two Wheeler</option>
+                                <option value="car">Car</option>
+                                <option value="both">Both</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Health Conditions (if any)</label>
+                        <input type="text" id="plan-health" placeholder="e.g., Asthma, Diabetes, Mobility issues">
+                    </div>
+
+                    <button class="generate-plan-btn" onclick="generatePersonalizedPlan()">
+                        <i class="fas fa-magic"></i> Generate My Personalized Plan
+                    </button>
+                </div>
+
+                <div class="plan-result" id="plan-result" style="display: none;">
+                    <div class="plan-loading" id="plan-loading">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <span>Creating your personalized plan...</span>
+                    </div>
+                    <div class="plan-content" id="plan-content"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Community Plan Modal -->
+    <div class="modal" id="community-modal">
+        <div class="modal-content large-modal">
+            <div class="modal-header">
+                <h2><i class="fas fa-users"></i> Community Preparedness Plan</h2>
+                <button class="close-btn" onclick="closeCommunityModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="plan-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Community Type *</label>
+                            <select id="community-type">
+                                <option value="residential-colony">Residential Colony</option>
+                                <option value="apartment-complex">Apartment Complex</option>
+                                <option value="village">Village</option>
+                                <option value="slum">Slum / Informal Settlement</option>
+                                <option value="commercial">Commercial Area</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Approximate Population</label>
+                            <input type="number" id="community-population" placeholder="e.g., 500">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Known Risk Factors</label>
+                        <textarea id="community-risks" placeholder="e.g., Low-lying area, near river, poor drainage..."></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Existing Resources</label>
+                        <textarea id="community-resources" placeholder="e.g., Community hall, water pumps, generator..."></textarea>
+                    </div>
+
+                    <button class="generate-plan-btn" onclick="generateCommunityPlan()">
+                        <i class="fas fa-magic"></i> Generate Community Plan
+                    </button>
+                </div>
+
+                <div class="plan-result" id="community-result" style="display: none;">
+                    <div class="plan-loading" id="community-loading">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <span>Creating community plan...</span>
+                    </div>
+                    <div class="plan-content" id="community-content"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
