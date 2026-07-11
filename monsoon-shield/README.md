@@ -7,6 +7,8 @@ MonsoonShield AI is a comprehensive solution that helps individuals, families, a
 ![MonsoonShield AI](https://img.shields.io/badge/Powered%20by-Groq%20AI-blue)
 ![Node.js](https://img.shields.io/badge/Node.js-18%2B-green)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
+![WCAG 2.1 AA](https://img.shields.io/badge/Accessibility-WCAG%202.1%20AA-brightgreen)
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template)
 
 ## 🎯 Features
 
@@ -60,6 +62,14 @@ MonsoonShield AI is a comprehensive solution that helps individuals, families, a
 - Resource pooling strategies
 - Evacuation route planning
 
+### 10. **Accessibility (WCAG 2.1 AA Compliant)**
+- Screen reader support with ARIA labels
+- Keyboard navigation
+- Skip navigation links
+- Focus management for modals
+- Reduced motion preferences
+- High contrast mode support
+
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -96,6 +106,63 @@ MonsoonShield AI is a comprehensive solution that helps individuals, families, a
    http://localhost:3000
    ```
 
+## 🚂 Deploy to Railway
+
+### One-Click Deployment
+
+1. Click the "Deploy on Railway" button above
+2. Connect your GitHub account
+3. Add the environment variable `GROQ_API_KEY`
+4. Deploy!
+
+### Manual Deployment
+
+1. **Install Railway CLI**
+   ```bash
+   npm install -g @railway/cli
+   ```
+
+2. **Login to Railway**
+   ```bash
+   railway login
+   ```
+
+3. **Initialize Project**
+   ```bash
+   cd PromptWars_Rounak/monsoon-shield
+   railway init
+   ```
+
+4. **Add Environment Variables**
+   ```bash
+   railway variables set GROQ_API_KEY=your_groq_api_key_here
+   ```
+
+5. **Deploy**
+   ```bash
+   railway up
+   ```
+
+6. **Get your deployment URL**
+   ```bash
+   railway domain
+   ```
+
+### Railway Configuration Files
+
+The project includes these Railway-specific files:
+- `railway.json` - Railway deployment configuration
+- `Procfile` - Process file for Railway
+- `nixpacks.toml` - Nixpacks build configuration
+
+### Required Environment Variables on Railway
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `GROQ_API_KEY` | Your Groq API key | Yes |
+| `PORT` | Automatically set by Railway | Auto |
+| `NODE_ENV` | Set to `production` | Auto |
+
 ## 🔧 Configuration
 
 ### Environment Variables
@@ -126,6 +193,12 @@ Main conversational endpoint for all queries.
   "language": "english"
 }
 ```
+
+### Health Check
+```
+GET /api/health
+```
+Returns service health status.
 
 ### Personalized Plan
 ```
@@ -181,6 +254,23 @@ POST /api/community-plan
 ```
 Community-level preparedness planning.
 
+## 🧪 Testing
+
+Run the test suite:
+```bash
+npm test
+```
+
+Run tests in watch mode:
+```bash
+npm run test:watch
+```
+
+Generate coverage report:
+```bash
+npm run test:coverage
+```
+
 ## 🏗️ Project Structure
 
 ```
@@ -190,19 +280,39 @@ monsoon-shield/
 ├── .env.example        # Environment variables template
 ├── .gitignore          # Git ignore rules
 ├── README.md           # Project documentation
+├── railway.json        # Railway deployment config
+├── Procfile            # Process file for deployment
+├── nixpacks.toml       # Nixpacks build config
+├── vitest.config.js    # Test configuration
+├── test/
+│   ├── server.test.js  # API test cases
+│   └── setup.js        # Test setup
 └── public/
-    ├── index.html      # Main HTML page
-    ├── styles.css      # CSS styles
-    └── app.js          # Frontend JavaScript
+    ├── index.html      # Main HTML page (WCAG 2.1 AA)
+    ├── styles.css      # CSS styles with accessibility
+    └── app.js          # Frontend JavaScript with a11y
 ```
 
 ## 🛠️ Technology Stack
 
 - **Backend**: Node.js, Express.js
-- **AI**: Groq (Llama 3.1 70B Versatile)
+- **AI**: Groq (Llama 3.3 70B Versatile)
 - **Frontend**: Vanilla HTML, CSS, JavaScript
 - **Styling**: Custom CSS with dark theme
 - **Icons**: Font Awesome 6
+- **Testing**: Vitest, Supertest
+- **Deployment**: Railway
+
+## ♿ Accessibility Features
+
+- **Skip Navigation**: Skip to main content link
+- **ARIA Roles**: Proper semantic roles (banner, main, navigation)
+- **Focus Management**: Modal focus trapping and restoration
+- **Keyboard Navigation**: Full keyboard support
+- **Screen Reader**: Live region announcements
+- **Reduced Motion**: Respects `prefers-reduced-motion`
+- **High Contrast**: Supports `prefers-contrast: high`
+- **Keyboard Shortcuts**: `/` to focus chat, `Escape` to close modals
 
 ## 📱 Features Breakdown
 
@@ -242,17 +352,6 @@ monsoon-shield/
 10. ਪੰਜਾਬੀ (Punjabi)
 11. ଓଡ଼ିଆ (Odia)
 
-## 🎨 Screenshots
-
-### Main Interface
-The application features a modern dark theme with intuitive navigation and real-time chat interface.
-
-### SOS Modal
-Quick access to emergency contacts and AI-powered emergency guidance.
-
-### Personalized Plan Generator
-Comprehensive form to generate customized preparedness plans.
-
 ## 🔒 Security Considerations
 
 - API keys are stored in environment variables
@@ -273,21 +372,6 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 For questions or support, please open an issue in the repository.
 
 ---
-
-# Groq API Configuration
-GROQ_API_KEY=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
-
-# Weather API (OpenWeatherMap)
-OPENWEATHER_API_KEY=83a0b3d341d2f5300baa1b6b4c98aff6
-
-# Server Configuration
-PORT=3000
-NODE_ENV=development
-
-# SMS/Alert Service (Twilio - Optional)
-TWILIO_ACCOUNT_SID=AC6a7c2e0f8da0be73dca4bdbae57ac0ee
-TWILIO_AUTH_TOKEN=d7aef7594e731f226091de9818668de9
-TWILIO_PHONE_NUMBER=9051167655
 
 **Built with ❤️ for Monsoon Safety by Rounak**
 
