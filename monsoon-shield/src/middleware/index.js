@@ -25,6 +25,7 @@ import logger, { logRequest, logSecurity } from '../utils/logger.js';
 export function helmetMiddleware() {
     return helmet({
         contentSecurityPolicy: {
+            useDefaults: false,
             directives: {
                 defaultSrc: ["'self'"],
                 styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com', 'https://cdnjs.cloudflare.com'],
@@ -38,7 +39,9 @@ export function helmetMiddleware() {
                 objectSrc: ["'none'"],
                 mediaSrc: ["'self'"],
                 baseUri: ["'self'"],
-                formAction: ["'self'"]
+                formAction: ["'self'"],
+                frameAncestors: ["'self'"],
+                upgradeInsecureRequests: []
             }
         },
         crossOriginEmbedderPolicy: false
