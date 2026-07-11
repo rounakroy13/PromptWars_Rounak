@@ -1,12 +1,12 @@
 // MonsoonShield AI - Frontend Application
-// WCAG 2.1 AA Compliant
+// WCAG 2.1 AA Compliant - CSP Safe (No inline event handlers)
 
 // Global State
 let currentMode = 'preparedness';
 let userContext = {};
 let selectedLanguage = 'english';
 let isLoading = false;
-let lastFocusedElement = null; // For focus management
+let lastFocusedElement = null;
 
 // Mode configurations
 const MODE_CONFIG = {
@@ -52,33 +52,190 @@ document.addEventListener('DOMContentLoaded', () => {
     loadSavedContext();
     initializeEventListeners();
     autoResizeTextarea();
+    initVoiceRecognition();
+    initAccessibility();
 });
 
-// Event Listeners
+// Event Listeners - All attached programmatically (CSP compliant)
 function initializeEventListeners() {
     // Language selector
-    document.getElementById('language-select').addEventListener('change', (e) => {
-        selectedLanguage = e.target.value;
-        localStorage.setItem('monsoonshield-language', selectedLanguage);
-    });
-
-    // Load saved language
-    const savedLanguage = localStorage.getItem('monsoonshield-language');
-    if (savedLanguage) {
-        selectedLanguage = savedLanguage;
-        document.getElementById('language-select').value = savedLanguage;
+    const langSelect = document.getElementById('language-select');
+    if (langSelect) {
+        langSelect.addEventListener('change', (e) => {
+            selectedLanguage = e.target.value;
+            localStorage.setItem('monsoonshield-language', selectedLanguage);
+            if (recognition) {
+                recognition.lang = getVoiceLanguage();
+            }
+        });
+        // Load saved language
+        const savedLanguage = localStorage.getItem('monsoonshield-language');
+        if (savedLanguage) {
+            selectedLanguage = savedLanguage;
+            langSelect.value = savedLanguage;
+        }
     }
 
-    // Chat input auto-resize
+    // Chat input
     const chatInput = document.getElementById('chat-input');
-    chatInput.addEventListener('input', autoResizeTextarea);
+    if (chatInput) {
+        chatInput.addEventListener('input', autoResizeTextarea);
+        chatInput.addEventListener('keydown', handleKeyDown);
+    }
+
+    // Send button
+    const sendBtn = document.getElementById('send-btn');
+    if (sendBtn) {
+        sendBtn.addEventListener('click', sendMessage);
+    }
+
+    // Voice button
+    const voiceBtn = document.getElementById('voice-btn');
+    if (voiceBtn) {
+        voiceBtn.addEventListener('click', toggleVoiceInput);
+    }
+
+    // Stop voice button
+    const stopVoiceBtn = document.getElementById('stop-voice-btn');
+    if (stopVoiceBtn) {
+        stopVoiceBtn.addEventListener('click', stopVoiceInput);
+    }
+
+    // SOS button in header
+    const sosBtnHeader = document.getElementById('sos-btn-header');
+    if (sosBtnHeader) {
+        sosBtnHeader.addEventListener('click', openSOSModal);
+    }
+
+    // SOS close button
+    const sosCloseBtn = document.getElementById('sos-close-btn');
+    if (sosCloseBtn) {
+        sosCloseBtn.addEventListener('click', closeSOSModal);
+    }
+
+    // SOS form
+    const sosForm = document.getElementById('sos-form');
+    if (sosForm) {
+        sosForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            getEmergencyHelp();
+        });
+    }
+
+    // Context settings button
+    const contextSettingsBtn = document.getElementById('context-settings-btn');
+    if (contextSettingsBtn) {
+        contextSettingsBtn.addEventListener('click', openContextModal);
+    }
+
+    // Context close button
+    const contextCloseBtn = document.getElementById('context-close-btn');
+    if (contextCloseBtn) {
+        contextCloseBtn.addEventListener('click', closeContextModal);
+    }
+
+    // Context form
+    const contextForm = document.getElementById('context-form');
+    if (contextForm) {
+        contextForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            saveContext();
+        });
+    }
+
+    // My Plan button
+    const myPlanBtn = document.getElementById('my-plan-btn');
+    if (myPlanBtn) {
+        myPlanBtn.addEventListener('click', openPersonalizedPlan);
+    }
+
+    // Plan close button
+    const planCloseBtn = document.getElementById('plan-close-btn');
+    if (planCloseBtn) {
+        planCloseBtn.addEventListener('click', closePlanModal);
+    }
+
+    // Plan form
+    const planForm = document.getElementById('plan-form');
+    if (planForm) {
+        planForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            generatePersonalizedPlan();
+        });
+    }
+
+    // Community button
+    const communityBtn = document.getElementById('community-btn');
+    if (communityBtn) {
+        communityBtn.addEventListener('click', openCommunityPlan);
+    }
+
+    // Community close button
+    const communityCloseBtn = document.getElementById('community-close-btn');
+    if (communityCloseBtn) {
+        communityCloseBtn.addEventListener('click', closeCommunityModal);
+    }
+
+    // Community form
+    const communityForm = document.getElementById('community-form');
+    if (communityForm) {
+        communityForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            generateCommunityPlan();
+        });
+    }
+
+    // Navigation buttons (mode switching)
+    document.querySelectorAll('.nav-btn[data-mode]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const mode = btn.dataset.mode;
+            if (mode) {
+                setMode(mode);
+            }
+        });
+    });
+
+    // Feature cards (quick prompts)
+    document.querySelectorAll('.feature-card[data-prompt]').forEach(card => {
+        card.addEventListener('click', () => {
+            const prompt = card.dataset.prompt;
+            if (prompt) {
+                quickPrompt(prompt);
+            }
+        });
+    });
+
+    // Close modals when clicking outside
+    document.addEventListener('click', (e) => {
+        if (e.target.classList.contains('modal')) {
+            e.target.classList.remove('active');
+        }
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+        // Escape to close modals
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.modal.active').forEach(modal => {
+                modal.classList.remove('active');
+            });
+        }
+        // / key to focus chat input
+        if (e.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) {
+            e.preventDefault();
+            document.getElementById('chat-input').focus();
+            announceToScreenReader('Chat input focused. Type your message.');
+        }
+    });
 }
 
 // Auto-resize textarea
 function autoResizeTextarea() {
     const textarea = document.getElementById('chat-input');
-    textarea.style.height = 'auto';
-    textarea.style.height = Math.min(textarea.scrollHeight, 150) + 'px';
+    if (textarea) {
+        textarea.style.height = 'auto';
+        textarea.style.height = Math.min(textarea.scrollHeight, 150) + 'px';
+    }
 }
 
 // Handle keyboard events
@@ -95,39 +252,57 @@ function setMode(mode) {
     
     // Update navigation buttons
     document.querySelectorAll('.nav-btn[data-mode]').forEach(btn => {
-        btn.classList.remove('active');
-        if (btn.dataset.mode === mode) {
-            btn.classList.add('active');
-        }
+        const isActive = btn.dataset.mode === mode;
+        btn.classList.toggle('active', isActive);
+        btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
     });
 
     // Update mode header
     const config = MODE_CONFIG[mode];
-    document.getElementById('mode-title').textContent = config.title;
-    document.getElementById('mode-description').textContent = config.description;
-    
-    const modeIcon = document.querySelector('.mode-icon');
-    modeIcon.className = `fas ${config.icon} mode-icon`;
+    if (config) {
+        document.getElementById('mode-title').textContent = config.title;
+        document.getElementById('mode-description').textContent = config.description;
+        
+        const modeIcon = document.querySelector('.mode-icon');
+        if (modeIcon) {
+            modeIcon.className = `fas ${config.icon} mode-icon`;
+        }
 
-    // Clear chat and show relevant welcome message
-    clearChat();
+        // Clear chat and show relevant welcome message
+        clearChat();
+        
+        // Announce mode change
+        announceToScreenReader(`Switched to ${config.title} mode. ${config.description}`);
+    }
 }
 
 // Clear chat messages
 function clearChat() {
     const chatMessages = document.getElementById('chat-messages');
+    if (!chatMessages) return;
+    
     chatMessages.innerHTML = `
-        <div class="welcome-message">
-            <div class="welcome-icon">
+        <div class="welcome-message" role="region" aria-label="Welcome information">
+            <div class="welcome-icon" aria-hidden="true">
                 <i class="fas ${MODE_CONFIG[currentMode].icon}"></i>
             </div>
             <h2>${MODE_CONFIG[currentMode].title}</h2>
             <p>${MODE_CONFIG[currentMode].description}</p>
-            <div class="feature-cards">
+            <div class="feature-cards" role="list" aria-label="Quick action cards">
                 ${getQuickPromptsForMode(currentMode)}
             </div>
         </div>
     `;
+    
+    // Re-attach event listeners to new feature cards
+    chatMessages.querySelectorAll('.feature-card[data-prompt]').forEach(card => {
+        card.addEventListener('click', () => {
+            const prompt = card.dataset.prompt;
+            if (prompt) {
+                quickPrompt(prompt);
+            }
+        });
+    });
 }
 
 // Get quick prompts based on mode
@@ -177,24 +352,28 @@ function getQuickPromptsForMode(mode) {
         ]
     };
 
-    return prompts[mode].map(p => `
-        <div class="feature-card" onclick="quickPrompt('${p.prompt.replace(/'/g, "\\'")}')">
-            <i class="fas ${p.icon}"></i>
+    const modePrompts = prompts[mode] || prompts.preparedness;
+    return modePrompts.map(p => `
+        <button class="feature-card" data-prompt="${p.prompt.replace(/"/g, '&quot;')}" role="listitem">
+            <i class="fas ${p.icon}" aria-hidden="true"></i>
             <span>${p.text}</span>
-        </div>
+        </button>
     `).join('');
 }
 
 // Quick prompt
 function quickPrompt(prompt) {
-    document.getElementById('chat-input').value = prompt;
-    sendMessage();
+    const chatInput = document.getElementById('chat-input');
+    if (chatInput) {
+        chatInput.value = prompt;
+        sendMessage();
+    }
 }
 
 // Send message
 async function sendMessage() {
     const input = document.getElementById('chat-input');
-    const message = input.value.trim();
+    const message = input?.value?.trim();
 
     if (!message || isLoading) return;
 
@@ -215,7 +394,10 @@ async function sendMessage() {
     showTypingIndicator();
 
     isLoading = true;
-    document.getElementById('send-btn').disabled = true;
+    const sendBtn = document.getElementById('send-btn');
+    if (sendBtn) sendBtn.disabled = true;
+
+    announceToScreenReader('Message sent. Waiting for response.');
 
     try {
         const response = await fetch('/api/chat', {
@@ -232,11 +414,11 @@ async function sendMessage() {
         });
 
         const data = await response.json();
-
         hideTypingIndicator();
 
         if (data.success) {
             addMessage(data.response, 'assistant');
+            announceToScreenReader('New response received from MonsoonShield AI');
         } else {
             addMessage('I apologize, but I encountered an error. Please try again.', 'assistant');
         }
@@ -247,12 +429,14 @@ async function sendMessage() {
     }
 
     isLoading = false;
-    document.getElementById('send-btn').disabled = false;
+    const sendBtnEnd = document.getElementById('send-btn');
+    if (sendBtnEnd) sendBtnEnd.disabled = false;
 }
 
 // Add message to chat
 function addMessage(content, type) {
     const chatMessages = document.getElementById('chat-messages');
+    if (!chatMessages) return;
     
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${type}`;
@@ -261,7 +445,6 @@ function addMessage(content, type) {
         ? '<i class="fas fa-cloud-rain"></i>' 
         : '<i class="fas fa-user"></i>';
 
-    // Format the content
     const formattedContent = formatMessage(content);
 
     messageDiv.innerHTML = `
@@ -275,31 +458,21 @@ function addMessage(content, type) {
 
 // Format message content
 function formatMessage(content) {
-    // Convert markdown-like formatting to HTML
     let formatted = content
-        // Headers
         .replace(/^### (.*$)/gm, '<h4>$1</h4>')
         .replace(/^## (.*$)/gm, '<h3>$1</h3>')
         .replace(/^# (.*$)/gm, '<h3>$1</h3>')
-        // Bold
         .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-        // Italic
         .replace(/\*(.*?)\*/g, '<em>$1</em>')
-        // Lists
         .replace(/^- (.*$)/gm, '<li>$1</li>')
         .replace(/^• (.*$)/gm, '<li>$1</li>')
         .replace(/^(\d+)\. (.*$)/gm, '<li>$2</li>')
-        // Checkboxes
         .replace(/☐/g, '☐')
         .replace(/☑/g, '☑')
-        // Line breaks
         .replace(/\n\n/g, '</p><p>')
         .replace(/\n/g, '<br>');
 
-    // Wrap in paragraphs
     formatted = '<p>' + formatted + '</p>';
-    
-    // Wrap consecutive list items in ul
     formatted = formatted.replace(/(<li>.*?<\/li>)+/gs, '<ul>$&</ul>');
     
     return formatted;
@@ -308,6 +481,8 @@ function formatMessage(content) {
 // Show typing indicator
 function showTypingIndicator() {
     const chatMessages = document.getElementById('chat-messages');
+    if (!chatMessages) return;
+    
     const typingDiv = document.createElement('div');
     typingDiv.className = 'message assistant';
     typingDiv.id = 'typing-indicator';
@@ -335,14 +510,20 @@ function hideTypingIndicator() {
 
 // Modal functions
 function openSOSModal() {
+    lastFocusedElement = document.activeElement;
     document.getElementById('sos-modal').classList.add('active');
+    trapFocusInModal('sos-modal');
+    announceToScreenReader('Emergency SOS dialog opened. Use Tab to navigate, Escape to close.');
 }
 
 function closeSOSModal() {
     document.getElementById('sos-modal').classList.remove('active');
+    restoreFocus();
+    announceToScreenReader('Emergency dialog closed');
 }
 
 function openContextModal() {
+    lastFocusedElement = document.activeElement;
     // Pre-fill with saved context
     if (userContext.location) {
         document.getElementById('context-location-input').value = userContext.location;
@@ -361,13 +542,18 @@ function openContextModal() {
     }
 
     document.getElementById('context-modal').classList.add('active');
+    trapFocusInModal('context-modal');
+    announceToScreenReader('Settings dialog opened');
 }
 
 function closeContextModal() {
     document.getElementById('context-modal').classList.remove('active');
+    restoreFocus();
+    announceToScreenReader('Settings dialog closed');
 }
 
 function openPersonalizedPlan() {
+    lastFocusedElement = document.activeElement;
     // Pre-fill with context if available
     if (userContext.location) {
         document.getElementById('plan-location').value = userContext.location;
@@ -378,19 +564,28 @@ function openPersonalizedPlan() {
     
     document.getElementById('plan-result').style.display = 'none';
     document.getElementById('plan-modal').classList.add('active');
+    trapFocusInModal('plan-modal');
+    announceToScreenReader('Create personalized plan dialog opened');
 }
 
 function closePlanModal() {
     document.getElementById('plan-modal').classList.remove('active');
+    restoreFocus();
+    announceToScreenReader('Plan dialog closed');
 }
 
 function openCommunityPlan() {
+    lastFocusedElement = document.activeElement;
     document.getElementById('community-result').style.display = 'none';
     document.getElementById('community-modal').classList.add('active');
+    trapFocusInModal('community-modal');
+    announceToScreenReader('Community plan dialog opened');
 }
 
 function closeCommunityModal() {
     document.getElementById('community-modal').classList.remove('active');
+    restoreFocus();
+    announceToScreenReader('Community plan dialog closed');
 }
 
 // Save context
@@ -405,13 +600,10 @@ function saveContext() {
         healthConditions: document.getElementById('context-health').value
     };
 
-    // Save to localStorage
     localStorage.setItem('monsoonshield-context', JSON.stringify(userContext));
-
-    // Update context badge
     updateContextBadge();
-
     closeContextModal();
+    showToast('Your context has been saved successfully!', 'success');
 }
 
 // Load saved context
@@ -428,10 +620,10 @@ function updateContextBadge() {
     const badge = document.getElementById('context-badge');
     const locationSpan = document.getElementById('context-location');
     
-    if (userContext.location) {
+    if (userContext.location && badge && locationSpan) {
         badge.style.display = 'flex';
         locationSpan.textContent = userContext.location;
-    } else {
+    } else if (badge) {
         badge.style.display = 'none';
     }
 }
@@ -448,22 +640,18 @@ async function getEmergencyHelp() {
     }
 
     closeSOSModal();
-
-    // Switch to emergency mode
     setMode('emergency');
 
-    // Remove welcome message
     const welcome = document.querySelector('.welcome-message');
     if (welcome) {
         welcome.remove();
     }
 
-    // Add user message
     const userMessage = `EMERGENCY: ${emergencyType || 'Urgent help needed'}\n${situation ? 'Situation: ' + situation : ''}\n${location ? 'Location: ' + location : ''}`;
     addMessage(userMessage, 'user');
-
-    // Show typing indicator
     showTypingIndicator();
+
+    announceToScreenReader('Processing emergency request. Please wait.', 'assertive');
 
     try {
         const response = await fetch('/api/emergency-sos', {
@@ -491,6 +679,8 @@ async function getEmergencyHelp() {
         hideTypingIndicator();
         addMessage(`Unable to connect. Please call emergency services:\n- NDRF: 9711077372\n- Police: 100\n- Ambulance: 102`, 'assistant');
     }
+
+    announceToScreenReader('Emergency guidance received. Please review the instructions carefully.', 'assertive');
 }
 
 // Generate Personalized Plan
@@ -499,7 +689,6 @@ async function generatePersonalizedPlan() {
     const planLoading = document.getElementById('plan-loading');
     const planContent = document.getElementById('plan-content');
 
-    // Get form data
     const planData = {
         location: document.getElementById('plan-location').value,
         familySize: document.getElementById('plan-family-size').value,
@@ -520,10 +709,11 @@ async function generatePersonalizedPlan() {
         return;
     }
 
-    // Show loading
     planResult.style.display = 'block';
     planLoading.style.display = 'flex';
     planContent.style.display = 'none';
+
+    announceToScreenReader('Generating your personalized plan. Please wait.');
 
     try {
         const response = await fetch('/api/preparedness-plan', {
@@ -549,6 +739,11 @@ async function generatePersonalizedPlan() {
         planContent.style.display = 'block';
         planContent.innerHTML = '<p>Error connecting to server. Please check your connection.</p>';
     }
+
+    announceToScreenReader('Your personalized plan is ready.');
+    if (planContent) {
+        planContent.focus();
+    }
 }
 
 // Generate Community Plan
@@ -557,7 +752,6 @@ async function generateCommunityPlan() {
     const communityLoading = document.getElementById('community-loading');
     const communityContent = document.getElementById('community-content');
 
-    // Get form data
     const communityData = {
         communityType: document.getElementById('community-type').value,
         population: document.getElementById('community-population').value,
@@ -566,10 +760,11 @@ async function generateCommunityPlan() {
         language: selectedLanguage
     };
 
-    // Show loading
     communityResult.style.display = 'block';
     communityLoading.style.display = 'flex';
     communityContent.style.display = 'none';
+
+    announceToScreenReader('Generating community plan. Please wait.');
 
     try {
         const response = await fetch('/api/community-plan', {
@@ -595,30 +790,17 @@ async function generateCommunityPlan() {
         communityContent.style.display = 'block';
         communityContent.innerHTML = '<p>Error connecting to server. Please check your connection.</p>';
     }
+
+    announceToScreenReader('Community plan is ready.');
+    if (communityContent) {
+        communityContent.focus();
+    }
 }
 
-// Close modals when clicking outside
-document.addEventListener('click', (e) => {
-    if (e.target.classList.contains('modal')) {
-        e.target.classList.remove('active');
-    }
-});
-
-// Keyboard shortcuts
-document.addEventListener('keydown', (e) => {
-    // Escape to close modals
-    if (e.key === 'Escape') {
-        document.querySelectorAll('.modal.active').forEach(modal => {
-            modal.classList.remove('active');
-        });
-    }
-});
-
-// Voice Input using Web Speech API
+// Voice Input
 let recognition = null;
 let isListening = false;
 
-// Initialize voice recognition
 function initVoiceRecognition() {
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -630,16 +812,28 @@ function initVoiceRecognition() {
         
         recognition.onstart = () => {
             isListening = true;
-            document.getElementById('voice-btn').classList.add('listening');
-            document.getElementById('voice-status').style.display = 'flex';
-            document.getElementById('voice-icon').className = 'fas fa-stop';
+            const voiceBtn = document.getElementById('voice-btn');
+            if (voiceBtn) {
+                voiceBtn.classList.add('listening');
+                voiceBtn.setAttribute('aria-pressed', 'true');
+            }
+            const voiceStatus = document.getElementById('voice-status');
+            if (voiceStatus) voiceStatus.style.display = 'flex';
+            const voiceIcon = document.getElementById('voice-icon');
+            if (voiceIcon) voiceIcon.className = 'fas fa-stop';
         };
         
         recognition.onend = () => {
             isListening = false;
-            document.getElementById('voice-btn').classList.remove('listening');
-            document.getElementById('voice-status').style.display = 'none';
-            document.getElementById('voice-icon').className = 'fas fa-microphone';
+            const voiceBtn = document.getElementById('voice-btn');
+            if (voiceBtn) {
+                voiceBtn.classList.remove('listening');
+                voiceBtn.setAttribute('aria-pressed', 'false');
+            }
+            const voiceStatus = document.getElementById('voice-status');
+            if (voiceStatus) voiceStatus.style.display = 'none';
+            const voiceIcon = document.getElementById('voice-icon');
+            if (voiceIcon) voiceIcon.className = 'fas fa-microphone';
         };
         
         recognition.onresult = (event) => {
@@ -656,12 +850,14 @@ function initVoiceRecognition() {
             }
             
             const chatInput = document.getElementById('chat-input');
-            if (finalTranscript) {
-                chatInput.value = finalTranscript;
-                autoResizeTextarea();
-            } else if (interimTranscript) {
-                chatInput.value = interimTranscript;
-                chatInput.placeholder = 'Listening...';
+            if (chatInput) {
+                if (finalTranscript) {
+                    chatInput.value = finalTranscript;
+                    autoResizeTextarea();
+                } else if (interimTranscript) {
+                    chatInput.value = interimTranscript;
+                    chatInput.placeholder = 'Listening...';
+                }
             }
         };
         
@@ -671,10 +867,6 @@ function initVoiceRecognition() {
             
             if (event.error === 'not-allowed') {
                 alert('Microphone access denied. Please enable microphone permissions in your browser settings.');
-            } else if (event.error === 'no-speech') {
-                // No speech detected, just stop quietly
-            } else {
-                alert('Voice input error: ' + event.error);
             }
         };
         
@@ -683,7 +875,6 @@ function initVoiceRecognition() {
     return false;
 }
 
-// Get voice language based on selected language
 function getVoiceLanguage() {
     const langMap = {
         'english': 'en-IN',
@@ -701,7 +892,6 @@ function getVoiceLanguage() {
     return langMap[selectedLanguage] || 'en-IN';
 }
 
-// Toggle voice input
 function toggleVoiceInput() {
     if (isListening) {
         stopVoiceInput();
@@ -710,16 +900,13 @@ function toggleVoiceInput() {
     }
 }
 
-// Start voice input
 async function startVoiceInput() {
-    // First check/request microphone permission
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        // Stop the stream immediately, we just needed permission
         stream.getTracks().forEach(track => track.stop());
     } catch (err) {
         console.error('Microphone permission error:', err);
-        alert('🎤 Microphone Access Required\n\nTo use voice input:\n1. Click the lock/info icon in browser address bar\n2. Allow microphone access\n3. Reload the page and try again');
+        alert('Microphone Access Required. Please allow microphone access and try again.');
         return;
     }
 
@@ -730,99 +917,59 @@ async function startVoiceInput() {
         }
     }
     
-    // Update language before starting
     recognition.lang = getVoiceLanguage();
     
     try {
         recognition.start();
+        announceToScreenReader('Voice input started. Speak now.', 'assertive');
     } catch (error) {
         console.error('Error starting voice recognition:', error);
-        if (error.message.includes('already started')) {
+        if (error.message && error.message.includes('already started')) {
             recognition.stop();
         }
     }
 }
 
-// Stop voice input
 function stopVoiceInput() {
     if (recognition && isListening) {
         recognition.stop();
     }
     isListening = false;
-    document.getElementById('voice-btn').classList.remove('listening');
-    document.getElementById('voice-status').style.display = 'none';
-    document.getElementById('voice-icon').className = 'fas fa-microphone';
-    document.getElementById('chat-input').placeholder = 'Ask about monsoon preparedness, safety tips, emergency guidance...';
-}
-
-// Update voice language when language selector changes
-document.addEventListener('DOMContentLoaded', () => {
-    const langSelect = document.getElementById('language-select');
-    if (langSelect) {
-        langSelect.addEventListener('change', () => {
-            if (recognition) {
-                recognition.lang = getVoiceLanguage();
-            }
-        });
+    
+    const voiceBtn = document.getElementById('voice-btn');
+    if (voiceBtn) {
+        voiceBtn.classList.remove('listening');
+        voiceBtn.setAttribute('aria-pressed', 'false');
     }
-});
-
-// Service Worker Registration (for PWA support)
-if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        // Service worker can be added for offline support
-        console.log('MonsoonShield AI loaded successfully');
-        
-        // Initialize voice recognition
-        initVoiceRecognition();
-        
-        // Initialize accessibility features
-        initAccessibility();
-    });
+    const voiceStatus = document.getElementById('voice-status');
+    if (voiceStatus) voiceStatus.style.display = 'none';
+    const voiceIcon = document.getElementById('voice-icon');
+    if (voiceIcon) voiceIcon.className = 'fas fa-microphone';
+    
+    const chatInput = document.getElementById('chat-input');
+    if (chatInput) {
+        chatInput.placeholder = 'Ask about monsoon preparedness, safety tips, emergency guidance...';
+    }
+    
+    announceToScreenReader('Voice input stopped');
 }
 
-// ============================================
-// ACCESSIBILITY FUNCTIONS (WCAG 2.1 AA)
-// ============================================
-
-/**
- * Initialize accessibility features
- */
+// Accessibility Functions
 function initAccessibility() {
-    // Set up focus trap for modals
-    setupModalFocusManagement();
-    
-    // Add keyboard navigation
     setupKeyboardNavigation();
-    
-    // Update ARIA states on navigation buttons
-    updateNavButtonAria();
 }
 
-/**
- * Announce message to screen readers
- * @param {string} message - Message to announce
- * @param {string} priority - 'polite' or 'assertive'
- */
 function announceToScreenReader(message, priority = 'polite') {
     const liveRegion = document.getElementById('live-region');
     if (liveRegion) {
         liveRegion.setAttribute('aria-live', priority);
         liveRegion.textContent = message;
-        
-        // Clear after announcement
         setTimeout(() => {
             liveRegion.textContent = '';
         }, 1000);
     }
 }
 
-/**
- * Show toast notification (accessible)
- * @param {string} message - Message to show
- * @param {string} type - 'success', 'error', 'warning', or 'info'
- * @param {number} duration - Duration in ms
- */
 function showToast(message, type = 'info', duration = 5000) {
     const container = document.getElementById('toast-container');
     if (!container) return;
@@ -831,97 +978,32 @@ function showToast(message, type = 'info', duration = 5000) {
     toast.className = `toast ${type}`;
     toast.setAttribute('role', 'alert');
     toast.setAttribute('aria-live', 'assertive');
+    
+    const iconClass = type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle';
     toast.innerHTML = `
-        <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : type === 'warning' ? 'fa-exclamation-triangle' : 'fa-info-circle'}" aria-hidden="true"></i>
+        <i class="fas ${iconClass}" aria-hidden="true"></i>
         <span>${message}</span>
-        <button class="toast-close" aria-label="Close notification" onclick="this.parentElement.remove()">
+        <button class="toast-close" aria-label="Close notification">
             <i class="fas fa-times" aria-hidden="true"></i>
         </button>
     `;
     
+    const closeBtn = toast.querySelector('.toast-close');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => toast.remove());
+    }
+    
     container.appendChild(toast);
     
-    // Auto remove
     setTimeout(() => {
         if (toast.parentElement) {
             toast.remove();
         }
     }, duration);
     
-    // Also announce to screen readers
     announceToScreenReader(message, type === 'error' ? 'assertive' : 'polite');
 }
 
-/**
- * Setup modal focus management
- */
-function setupModalFocusManagement() {
-    // Override modal open/close functions to include focus management
-    const originalOpenSOSModal = window.openSOSModal;
-    window.openSOSModal = function() {
-        lastFocusedElement = document.activeElement;
-        originalOpenSOSModal();
-        trapFocusInModal('sos-modal');
-        announceToScreenReader('Emergency SOS dialog opened. Use Tab to navigate, Escape to close.');
-    };
-    
-    const originalCloseSOSModal = window.closeSOSModal;
-    window.closeSOSModal = function() {
-        originalCloseSOSModal();
-        restoreFocus();
-        announceToScreenReader('Emergency dialog closed');
-    };
-    
-    const originalOpenContextModal = window.openContextModal;
-    window.openContextModal = function() {
-        lastFocusedElement = document.activeElement;
-        originalOpenContextModal();
-        trapFocusInModal('context-modal');
-        announceToScreenReader('Settings dialog opened');
-    };
-    
-    const originalCloseContextModal = window.closeContextModal;
-    window.closeContextModal = function() {
-        originalCloseContextModal();
-        restoreFocus();
-        announceToScreenReader('Settings dialog closed');
-    };
-    
-    const originalOpenPersonalizedPlan = window.openPersonalizedPlan;
-    window.openPersonalizedPlan = function() {
-        lastFocusedElement = document.activeElement;
-        originalOpenPersonalizedPlan();
-        trapFocusInModal('plan-modal');
-        announceToScreenReader('Create personalized plan dialog opened');
-    };
-    
-    const originalClosePlanModal = window.closePlanModal;
-    window.closePlanModal = function() {
-        originalClosePlanModal();
-        restoreFocus();
-        announceToScreenReader('Plan dialog closed');
-    };
-    
-    const originalOpenCommunityPlan = window.openCommunityPlan;
-    window.openCommunityPlan = function() {
-        lastFocusedElement = document.activeElement;
-        originalOpenCommunityPlan();
-        trapFocusInModal('community-modal');
-        announceToScreenReader('Community plan dialog opened');
-    };
-    
-    const originalCloseCommunityModal = window.closeCommunityModal;
-    window.closeCommunityModal = function() {
-        originalCloseCommunityModal();
-        restoreFocus();
-        announceToScreenReader('Community plan dialog closed');
-    };
-}
-
-/**
- * Trap focus within a modal
- * @param {string} modalId - ID of the modal
- */
 function trapFocusInModal(modalId) {
     const modal = document.getElementById(modalId);
     if (!modal) return;
@@ -935,21 +1017,17 @@ function trapFocusInModal(modalId) {
     const firstElement = focusableElements[0];
     const lastElement = focusableElements[focusableElements.length - 1];
     
-    // Focus first element
     setTimeout(() => firstElement.focus(), 100);
     
-    // Handle tab key
     modal.addEventListener('keydown', function(e) {
         if (e.key !== 'Tab') return;
         
         if (e.shiftKey) {
-            // Shift + Tab
             if (document.activeElement === firstElement) {
                 e.preventDefault();
                 lastElement.focus();
             }
         } else {
-            // Tab
             if (document.activeElement === lastElement) {
                 e.preventDefault();
                 firstElement.focus();
@@ -958,31 +1036,22 @@ function trapFocusInModal(modalId) {
     });
 }
 
-/**
- * Restore focus to the element that opened the modal
- */
 function restoreFocus() {
     if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
         setTimeout(() => lastFocusedElement.focus(), 100);
     }
 }
 
-/**
- * Setup keyboard navigation
- */
 function setupKeyboardNavigation() {
-    // Add keyboard support for feature cards
     document.addEventListener('keydown', (e) => {
         const target = e.target;
         
-        // Handle Enter/Space on feature cards
-        if (target.classList.contains('feature-card') && (e.key === 'Enter' || e.key === ' ')) {
+        if (target.classList && target.classList.contains('feature-card') && (e.key === 'Enter' || e.key === ' ')) {
             e.preventDefault();
             target.click();
         }
         
-        // Handle arrow key navigation in nav buttons
-        if (target.classList.contains('nav-btn')) {
+        if (target.classList && target.classList.contains('nav-btn')) {
             const navButtons = Array.from(document.querySelectorAll('.nav-btn[data-mode]'));
             const currentIndex = navButtons.indexOf(target);
             
@@ -999,134 +1068,9 @@ function setupKeyboardNavigation() {
     });
 }
 
-/**
- * Update ARIA states on navigation buttons
- */
-function updateNavButtonAria() {
-    // Override setMode to update aria-pressed
-    const originalSetMode = window.setMode;
-    window.setMode = function(mode) {
-        // Update aria-pressed states
-        document.querySelectorAll('.nav-btn[data-mode]').forEach(btn => {
-            btn.setAttribute('aria-pressed', btn.dataset.mode === mode ? 'true' : 'false');
-        });
-        
-        originalSetMode(mode);
-        
-        // Announce mode change
-        const config = MODE_CONFIG[mode];
-        announceToScreenReader(`Switched to ${config.title} mode. ${config.description}`);
-    };
-}
-
-/**
- * Enhanced addMessage with accessibility
- */
-const originalAddMessage = window.addMessage;
-window.addMessage = function(content, type) {
-    originalAddMessage(content, type);
-    
-    // Announce new message
-    if (type === 'assistant') {
-        announceToScreenReader('New response received from MonsoonShield AI');
-    }
-};
-
-/**
- * Enhanced saveContext with accessibility
- */
-const originalSaveContext = window.saveContext;
-window.saveContext = function() {
-    originalSaveContext();
-    showToast('Your context has been saved successfully!', 'success');
-};
-
-/**
- * Enhanced generatePersonalizedPlan with accessibility
- */
-const originalGeneratePlan = window.generatePersonalizedPlan;
-window.generatePersonalizedPlan = async function() {
-    announceToScreenReader('Generating your personalized plan. Please wait.');
-    await originalGeneratePlan();
-    announceToScreenReader('Your personalized plan is ready.');
-    
-    // Focus on the result
-    const planContent = document.getElementById('plan-content');
-    if (planContent) {
-        planContent.focus();
-    }
-};
-
-/**
- * Enhanced generateCommunityPlan with accessibility
- */
-const originalGenerateCommunityPlan = window.generateCommunityPlan;
-window.generateCommunityPlan = async function() {
-    announceToScreenReader('Generating community plan. Please wait.');
-    await originalGenerateCommunityPlan();
-    announceToScreenReader('Community plan is ready.');
-    
-    // Focus on the result
-    const communityContent = document.getElementById('community-content');
-    if (communityContent) {
-        communityContent.focus();
-    }
-};
-
-/**
- * Enhanced sendMessage with accessibility
- */
-const originalSendMessage = window.sendMessage;
-window.sendMessage = async function() {
-    const input = document.getElementById('chat-input');
-    const message = input.value.trim();
-    
-    if (!message) {
-        announceToScreenReader('Please enter a message before sending');
-        return;
-    }
-    
-    announceToScreenReader('Message sent. Waiting for response.');
-    await originalSendMessage();
-};
-
-/**
- * Enhanced getEmergencyHelp with accessibility
- */
-const originalGetEmergencyHelp = window.getEmergencyHelp;
-window.getEmergencyHelp = async function() {
-    announceToScreenReader('Processing emergency request. Please wait.', 'assertive');
-    await originalGetEmergencyHelp();
-    announceToScreenReader('Emergency guidance received. Please review the instructions carefully.', 'assertive');
-};
-
-/**
- * Enhanced voice input functions with accessibility
- */
-const originalStartVoiceInput = window.startVoiceInput;
-window.startVoiceInput = async function() {
-    await originalStartVoiceInput();
-    if (isListening) {
-        announceToScreenReader('Voice input started. Speak now.', 'assertive');
-        document.getElementById('voice-btn').setAttribute('aria-pressed', 'true');
-    }
-};
-
-const originalStopVoiceInput = window.stopVoiceInput;
-window.stopVoiceInput = function() {
-    originalStopVoiceInput();
-    announceToScreenReader('Voice input stopped');
-    document.getElementById('voice-btn').setAttribute('aria-pressed', 'false');
-};
-
-// Add skip to chat functionality
-document.addEventListener('DOMContentLoaded', () => {
-    // Focus chat input when user presses / key
-    document.addEventListener('keydown', (e) => {
-        if (e.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) {
-            e.preventDefault();
-            document.getElementById('chat-input').focus();
-            announceToScreenReader('Chat input focused. Type your message.');
-        }
+// Service Worker Registration
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        console.log('MonsoonShield AI loaded successfully');
     });
-});
+}
