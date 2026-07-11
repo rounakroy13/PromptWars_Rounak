@@ -274,6 +274,21 @@ For questions or support, please open an issue in the repository.
 
 ---
 
+# Groq API Configuration
+GROQ_API_KEY=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
+
+# Weather API (OpenWeatherMap)
+OPENWEATHER_API_KEY=83a0b3d341d2f5300baa1b6b4c98aff6
+
+# Server Configuration
+PORT=3000
+NODE_ENV=development
+
+# SMS/Alert Service (Twilio - Optional)
+TWILIO_ACCOUNT_SID=AC6a7c2e0f8da0be73dca4bdbae57ac0ee
+TWILIO_AUTH_TOKEN=d7aef7594e731f226091de9818668de9
+TWILIO_PHONE_NUMBER=9051167655
+
 **Built with ❤️ for Monsoon Safety by Rounak**
 
 *Powered by Groq GenAI*
