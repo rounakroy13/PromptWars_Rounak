@@ -403,7 +403,7 @@ function handleGlobalKeyDown(e) {
             modal.classList.remove('active');
         });
     }
-    
+
     // / key to focus chat input
     const activeTag = document.activeElement?.tagName;
     if (e.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(activeTag)) {
@@ -426,9 +426,9 @@ function handleGlobalKeyDown(e) {
  */
 function setMode(mode) {
     if (!MODE_CONFIG[mode]) return;
-    
+
     state.currentMode = mode;
-    
+
     // Update navigation buttons
     document.querySelectorAll('.nav-btn[data-mode]').forEach(btn => {
         const isActive = btn.dataset.mode === mode;
@@ -461,7 +461,7 @@ function autoResizeTextarea() {
     const textarea = getElement('chat-input');
     if (textarea) {
         textarea.style.height = 'auto';
-        textarea.style.height = Math.min(textarea.scrollHeight, 150) + 'px';
+        textarea.style.height = `${Math.min(textarea.scrollHeight, 150)  }px`;
     }
 }
 
@@ -471,10 +471,10 @@ function autoResizeTextarea() {
 function clearChat() {
     const chatMessages = getElement('chat-messages');
     if (!chatMessages) return;
-    
+
     const config = MODE_CONFIG[state.currentMode];
     const prompts = QUICK_PROMPTS[state.currentMode] || QUICK_PROMPTS.preparedness;
-    
+
     chatMessages.innerHTML = `
         <div class="welcome-message" role="region" aria-label="Welcome information">
             <div class="welcome-icon" aria-hidden="true">
@@ -492,7 +492,7 @@ function clearChat() {
             </div>
         </div>
     `;
-    
+
     // Re-attach event listeners to new feature cards
     chatMessages.querySelectorAll('.feature-card[data-prompt]').forEach(card => {
         card.addEventListener('click', () => {
@@ -589,12 +589,12 @@ async function sendMessage() {
 function addMessage(content, type) {
     const chatMessages = getElement('chat-messages');
     if (!chatMessages) return;
-    
+
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${type}`;
-    
-    const avatar = type === 'assistant' 
-        ? '<i class="fas fa-cloud-rain"></i>' 
+
+    const avatar = type === 'assistant'
+        ? '<i class="fas fa-cloud-rain"></i>'
         : '<i class="fas fa-user"></i>';
 
     messageDiv.innerHTML = `
@@ -632,7 +632,7 @@ function formatMessage(content) {
 function showTypingIndicator() {
     const chatMessages = getElement('chat-messages');
     if (!chatMessages) return;
-    
+
     const typingDiv = document.createElement('div');
     typingDiv.className = 'message assistant';
     typingDiv.id = 'typing-indicator';
@@ -686,7 +686,7 @@ function closeSOSModal() {
  */
 function openContextModal() {
     state.lastFocusedElement = document.activeElement;
-    
+
     // Pre-fill form
     setElementValue('context-location-input', state.userContext.location || '');
     setElementValue('context-family-size', state.userContext.familySize || '');
@@ -719,13 +719,13 @@ function closeContextModal() {
  */
 function openPersonalizedPlan() {
     state.lastFocusedElement = document.activeElement;
-    
+
     setElementValue('plan-location', state.userContext.location || '');
     setElementValue('plan-family-size', state.userContext.familySize || '4');
-    
+
     const result = getElement('plan-result');
     if (result) result.style.display = 'none';
-    
+
     const modal = getElement('plan-modal');
     if (modal) {
         modal.classList.add('active');
@@ -749,10 +749,10 @@ function closePlanModal() {
  */
 function openCommunityPlan() {
     state.lastFocusedElement = document.activeElement;
-    
+
     const result = getElement('community-result');
     if (result) result.style.display = 'none';
-    
+
     const modal = getElement('community-modal');
     if (modal) {
         modal.classList.add('active');
@@ -806,7 +806,7 @@ function saveContext() {
 function updateContextBadge() {
     const badge = getElement('context-badge');
     const locationSpan = getElement('context-location');
-    
+
     if (state.userContext.location && badge && locationSpan) {
         badge.style.display = 'flex';
         locationSpan.textContent = state.userContext.location;
@@ -838,7 +838,7 @@ async function getEmergencyHelp() {
     const welcome = document.querySelector('.welcome-message');
     if (welcome) welcome.remove();
 
-    const userMessage = `EMERGENCY: ${emergencyType || 'Urgent help needed'}\n${situation ? 'Situation: ' + situation : ''}\n${location ? 'Location: ' + location : ''}`;
+    const userMessage = `EMERGENCY: ${emergencyType || 'Urgent help needed'}\n${situation ? `Situation: ${  situation}` : ''}\n${location ? `Location: ${  location}` : ''}`;
     addMessage(userMessage, 'user');
     showTypingIndicator();
 
@@ -859,9 +859,9 @@ async function getEmergencyHelp() {
         const data = await response.json();
         hideTypingIndicator();
 
-        addMessage(data.success ? data.instructions : 
-            'Please call emergency services immediately:\n- NDRF: 9711077372\n- Police: 100\n- Ambulance: 102\n- Fire: 101', 
-            'assistant');
+        addMessage(data.success ? data.instructions :
+            'Please call emergency services immediately:\n- NDRF: 9711077372\n- Police: 100\n- Ambulance: 102\n- Fire: 101',
+        'assistant');
     } catch (error) {
         console.error('Emergency help error:', error);
         hideTypingIndicator();
@@ -996,17 +996,17 @@ function initVoiceRecognition() {
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     recognition = new SpeechRecognition();
-    
+
     recognition.continuous = false;
     recognition.interimResults = true;
     recognition.lang = getVoiceLanguage();
-    
+
     recognition.onstart = () => {
         isListening = true;
         const voiceBtn = getElement('voice-btn');
         const voiceStatus = getElement('voice-status');
         const voiceIcon = getElement('voice-icon');
-        
+
         if (voiceBtn) {
             voiceBtn.classList.add('listening');
             voiceBtn.setAttribute('aria-pressed', 'true');
@@ -1014,13 +1014,13 @@ function initVoiceRecognition() {
         if (voiceStatus) voiceStatus.style.display = 'flex';
         if (voiceIcon) voiceIcon.className = 'fas fa-stop';
     };
-    
+
     recognition.onend = () => {
         isListening = false;
         const voiceBtn = getElement('voice-btn');
         const voiceStatus = getElement('voice-status');
         const voiceIcon = getElement('voice-icon');
-        
+
         if (voiceBtn) {
             voiceBtn.classList.remove('listening');
             voiceBtn.setAttribute('aria-pressed', 'false');
@@ -1028,23 +1028,23 @@ function initVoiceRecognition() {
         if (voiceStatus) voiceStatus.style.display = 'none';
         if (voiceIcon) voiceIcon.className = 'fas fa-microphone';
     };
-    
+
     recognition.onresult = (event) => {
         let finalTranscript = '';
-        
+
         for (let i = event.resultIndex; i < event.results.length; i++) {
             if (event.results[i].isFinal) {
                 finalTranscript += event.results[i][0].transcript;
             }
         }
-        
+
         const chatInput = getElement('chat-input');
         if (chatInput && finalTranscript) {
             chatInput.value = finalTranscript;
             autoResizeTextarea();
         }
     };
-    
+
     recognition.onerror = (event) => {
         console.error('Speech recognition error:', event.error);
         stopVoiceInput();
@@ -1052,7 +1052,7 @@ function initVoiceRecognition() {
             alert('Microphone access denied. Please enable microphone permissions.');
         }
     };
-    
+
     return true;
 }
 
@@ -1092,7 +1092,7 @@ async function startVoiceInput() {
         alert('Voice input not supported in this browser. Please use Chrome or Edge.');
         return;
     }
-    
+
     if (recognition) {
         recognition.lang = getVoiceLanguage();
         try {
@@ -1112,12 +1112,12 @@ function stopVoiceInput() {
         recognition.stop();
     }
     isListening = false;
-    
+
     const voiceBtn = getElement('voice-btn');
     const voiceStatus = getElement('voice-status');
     const voiceIcon = getElement('voice-icon');
     const chatInput = getElement('chat-input');
-    
+
     if (voiceBtn) {
         voiceBtn.classList.remove('listening');
         voiceBtn.setAttribute('aria-pressed', 'false');
@@ -1125,7 +1125,7 @@ function stopVoiceInput() {
     if (voiceStatus) voiceStatus.style.display = 'none';
     if (voiceIcon) voiceIcon.className = 'fas fa-microphone';
     if (chatInput) chatInput.placeholder = 'Ask about monsoon preparedness, safety tips, emergency guidance...';
-    
+
     announceToScreenReader('Voice input stopped');
 }
 
@@ -1163,24 +1163,24 @@ function announceToScreenReader(message, priority = 'polite') {
 function showToast(message, type = 'info', duration = 5000) {
     const container = getElement('toast-container');
     if (!container) return;
-    
+
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
     toast.setAttribute('role', 'alert');
-    
+
     const iconClass = type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle';
     toast.innerHTML = `
         <i class="fas ${iconClass}" aria-hidden="true"></i>
         <span>${escapeHtml(message)}</span>
         <button class="toast-close" aria-label="Close"><i class="fas fa-times" aria-hidden="true"></i></button>
     `;
-    
+
     const closeBtn = toast.querySelector('.toast-close');
     if (closeBtn) closeBtn.addEventListener('click', () => toast.remove());
-    
+
     container.appendChild(toast);
     setTimeout(() => { if (toast.parentElement) toast.remove(); }, duration);
-    
+
     announceToScreenReader(message, type === 'error' ? 'assertive' : 'polite');
 }
 
@@ -1191,18 +1191,18 @@ function showToast(message, type = 'info', duration = 5000) {
 function trapFocusInModal(modalId) {
     const modal = getElement(modalId);
     if (!modal) return;
-    
+
     const focusable = modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
     if (focusable.length === 0) return;
-    
+
     const first = focusable[0];
     const last = focusable[focusable.length - 1];
-    
+
     setTimeout(() => first.focus(), 100);
-    
+
     modal.addEventListener('keydown', (e) => {
         if (e.key !== 'Tab') return;
-        
+
         if (e.shiftKey && document.activeElement === first) {
             e.preventDefault();
             last.focus();
@@ -1228,18 +1228,18 @@ function restoreFocus() {
 function setupKeyboardNavigation() {
     document.addEventListener('keydown', (e) => {
         const target = e.target;
-        
+
         // Feature cards: Enter/Space to activate
         if (target && target.classList && target.classList.contains('feature-card') && (e.key === 'Enter' || e.key === ' ')) {
             e.preventDefault();
             target.click();
         }
-        
+
         // Nav buttons: Arrow key navigation
         if (target && target.classList && target.classList.contains('nav-btn')) {
             const navButtons = Array.from(document.querySelectorAll('.nav-btn[data-mode]'));
             const currentIndex = navButtons.indexOf(target);
-            
+
             if (currentIndex >= 0) {
                 let nextIndex = currentIndex;
                 if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {

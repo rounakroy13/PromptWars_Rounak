@@ -6,7 +6,7 @@
 import winston from 'winston';
 import { appConfig } from '../config/index.js';
 
-const { combine, timestamp, errors, json, colorize, simple, printf } = winston.format;
+const { combine, timestamp, errors, json, colorize, printf } = winston.format;
 
 /**
  * Custom log format for development

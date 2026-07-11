@@ -7,6 +7,31 @@ import xss from 'xss';
 import { VALID_MODES, VALID_LANGUAGES } from '../config/index.js';
 
 /**
+ * @typedef {Object} PreparednessData
+ * @property {string|undefined} location - User's location
+ * @property {string|undefined} familySize - Family size
+ * @property {string|undefined} housingType - Type of housing
+ * @property {string|undefined} floor - Floor level
+ * @property {string|undefined} budget - Budget in INR
+ * @property {string|undefined} healthConditions - Health conditions
+ * @property {string|undefined} vehicleType - Vehicle type
+ * @property {boolean} hasChildren - Has children
+ * @property {boolean} hasElderly - Has elderly members
+ * @property {boolean} hasPets - Has pets
+ * @property {boolean} hasBasement - Has basement
+ * @property {string} language - Response language
+ */
+
+/**
+ * @typedef {Object} EmergencyData
+ * @property {string|undefined} emergencyType - Type of emergency
+ * @property {string|undefined} location - Location
+ * @property {string|undefined} situation - Situation description
+ * @property {string|undefined} peopleAffected - Number of people affected
+ * @property {string} language - Response language
+ */
+
+/**
  * Maximum allowed input length
  * @constant {number}
  */
@@ -27,8 +52,9 @@ export function sanitizeInput(input, maxLength = MAX_INPUT_LENGTH) {
 
 /**
  * Recursively sanitizes all string values in an object
- * @param {Object} obj - Object to sanitize
- * @returns {Object} Sanitized object
+ * @template T
+ * @param {T} obj - Object to sanitize
+ * @returns {T} Sanitized object
  */
 export function sanitizeObject(obj) {
     if (!obj || typeof obj !== 'object') {
@@ -36,7 +62,7 @@ export function sanitizeObject(obj) {
     }
 
     if (Array.isArray(obj)) {
-        return obj.map(item => {
+        return /** @type {T} */ (obj.map(item => {
             if (typeof item === 'string') {
                 return sanitizeInput(item);
             }
@@ -44,9 +70,10 @@ export function sanitizeObject(obj) {
                 return sanitizeObject(item);
             }
             return item;
-        });
+        }));
     }
 
+    /** @type {Record<string, unknown>} */
     const sanitized = {};
     for (const [key, value] of Object.entries(obj)) {
         if (typeof value === 'string') {
@@ -57,7 +84,7 @@ export function sanitizeObject(obj) {
             sanitized[key] = value;
         }
     }
-    return sanitized;
+    return /** @type {T} */ (sanitized);
 }
 
 /**
@@ -75,7 +102,7 @@ export function validateMode(mode) {
 
 /**
  * Validates and returns a valid language, defaults to 'english'
- * @param {string} language - Language to validate
+ * @param {string|undefined} [language] - Language to validate
  * @returns {string} Valid language
  */
 export function validateLanguage(language) {
@@ -112,9 +139,25 @@ export function toBoolean(value) {
 }
 
 /**
+ * @typedef {Object} RawPreparednessInput
+ * @property {string} [location]
+ * @property {string} [familySize]
+ * @property {string} [housingType]
+ * @property {string} [floor]
+ * @property {string} [budget]
+ * @property {string} [healthConditions]
+ * @property {string} [vehicleType]
+ * @property {boolean|string} [hasChildren]
+ * @property {boolean|string} [hasElderly]
+ * @property {boolean|string} [hasPets]
+ * @property {boolean|string} [hasBasement]
+ * @property {string} [language]
+ */
+
+/**
  * Sanitizes preparedness plan input data
- * @param {Object} data - Raw input data
- * @returns {Object} Sanitized data object
+ * @param {RawPreparednessInput} data - Raw input data
+ * @returns {PreparednessData} Sanitized data object
  */
 export function sanitizePreparednessData(data) {
     return {
@@ -134,9 +177,18 @@ export function sanitizePreparednessData(data) {
 }
 
 /**
+ * @typedef {Object} RawEmergencyInput
+ * @property {string} [emergencyType]
+ * @property {string} [location]
+ * @property {string} [situation]
+ * @property {string} [peopleAffected]
+ * @property {string} [language]
+ */
+
+/**
  * Sanitizes emergency data
- * @param {Object} data - Raw input data
- * @returns {Object} Sanitized data object
+ * @param {RawEmergencyInput} data - Raw input data
+ * @returns {EmergencyData} Sanitized data object
  */
 export function sanitizeEmergencyData(data) {
     return {

@@ -89,7 +89,7 @@ export function getCacheStats() {
         hits: stats.hits,
         misses: stats.misses,
         hitRate: stats.hits + stats.misses > 0
-            ? ((stats.hits / (stats.hits + stats.misses)) * 100).toFixed(2) + '%'
+            ? `${((stats.hits / (stats.hits + stats.misses)) * 100).toFixed(2)  }%`
             : '0%'
     };
 }

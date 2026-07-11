@@ -56,7 +56,7 @@ describe('MonsoonShield API Tests', () => {
     describe('Health Check Endpoint', () => {
         it('should return health status with cache info', async () => {
             const response = await request(app).get('/api/health');
-            
+
             expect(response.status).toBe(200);
             expect(response.body).toHaveProperty('status', 'ok');
             expect(response.body).toHaveProperty('service', 'MonsoonShield API');
@@ -71,7 +71,7 @@ describe('MonsoonShield API Tests', () => {
             const response = await request(app)
                 .post('/api/chat')
                 .send({});
-            
+
             expect(response.status).toBe(400);
             expect(response.body).toHaveProperty('error', 'Invalid request');
             expect(response.body).toHaveProperty('message', 'Message is required');
@@ -81,7 +81,7 @@ describe('MonsoonShield API Tests', () => {
             const response = await request(app)
                 .post('/api/chat')
                 .send({ message: 'A' });
-            
+
             expect(response.status).toBe(400);
             expect(response.body).toHaveProperty('error', 'Invalid request');
             expect(response.body).toHaveProperty('message', 'Message too short');
@@ -93,7 +93,7 @@ describe('MonsoonShield API Tests', () => {
                 .send({
                     message: 'How do I prepare my home for monsoon?'
                 });
-            
+
             expect(response.status).toBe(200);
             expect(response.body).toHaveProperty('success', true);
             expect(response.body).toHaveProperty('response');
@@ -108,7 +108,7 @@ describe('MonsoonShield API Tests', () => {
                     message: 'There is flooding in my area!',
                     mode: 'emergency'
                 });
-            
+
             expect(response.status).toBe(200);
             expect(response.body).toHaveProperty('success', true);
             expect(response.body).toHaveProperty('mode', 'emergency');
@@ -126,7 +126,7 @@ describe('MonsoonShield API Tests', () => {
                         housingType: 'apartment'
                     }
                 });
-            
+
             expect(response.status).toBe(200);
             expect(response.body).toHaveProperty('success', true);
         });
@@ -139,14 +139,14 @@ describe('MonsoonShield API Tests', () => {
                     mode: 'preparedness',
                     language: 'hindi'
                 });
-            
+
             expect(response.status).toBe(200);
             expect(response.body).toHaveProperty('success', true);
         });
 
         it('should handle all available chat modes', async () => {
             const modes = ['preparedness', 'emergency', 'travel', 'health', 'multilingual', 'checklist', 'realtime', 'recovery'];
-            
+
             for (const mode of modes) {
                 const response = await request(app)
                     .post('/api/chat')
@@ -154,7 +154,7 @@ describe('MonsoonShield API Tests', () => {
                         message: 'Test message for mode testing',
                         mode
                     });
-                
+
                 expect(response.status).toBe(200);
                 expect(response.body).toHaveProperty('mode', mode);
             }
@@ -167,7 +167,7 @@ describe('MonsoonShield API Tests', () => {
                     message: 'Test message for unknown mode',
                     mode: 'unknown_mode'
                 });
-            
+
             expect(response.status).toBe(200);
             expect(response.body).toHaveProperty('success', true);
             expect(response.body).toHaveProperty('mode', 'preparedness');
@@ -179,7 +179,7 @@ describe('MonsoonShield API Tests', () => {
             const response = await request(app)
                 .post('/api/preparedness-plan')
                 .send({});
-            
+
             expect(response.status).toBe(200);
             expect(response.body).toHaveProperty('success', true);
             expect(response.body).toHaveProperty('plan');
@@ -202,7 +202,7 @@ describe('MonsoonShield API Tests', () => {
                     healthConditions: 'Diabetes in family',
                     vehicleType: 'Car'
                 });
-            
+
             expect(response.status).toBe(200);
             expect(response.body).toHaveProperty('success', true);
             expect(response.body).toHaveProperty('plan');
@@ -215,7 +215,7 @@ describe('MonsoonShield API Tests', () => {
             const response = await request(app)
                 .post('/api/emergency-checklist')
                 .send({});
-            
+
             expect(response.status).toBe(200);
             expect(response.body).toHaveProperty('success', true);
             expect(response.body).toHaveProperty('checklist');
@@ -230,7 +230,7 @@ describe('MonsoonShield API Tests', () => {
                     familySize: '6',
                     specialNeeds: 'Infant and elderly wheelchair user'
                 });
-            
+
             expect(response.status).toBe(200);
             expect(response.body).toHaveProperty('success', true);
             expect(response.body).toHaveProperty('type', 'flood');
@@ -248,7 +248,7 @@ describe('MonsoonShield API Tests', () => {
                     modeOfTravel: 'Car',
                     weatherConditions: 'Heavy rain expected'
                 });
-            
+
             expect(response.status).toBe(200);
             expect(response.body).toHaveProperty('success', true);
             expect(response.body).toHaveProperty('advisory');
@@ -267,7 +267,7 @@ describe('MonsoonShield API Tests', () => {
                     ageGroup: 'Adult',
                     existingConditions: 'None'
                 });
-            
+
             expect(response.status).toBe(200);
             expect(response.body).toHaveProperty('success', true);
             expect(response.body).toHaveProperty('guidance');
@@ -288,7 +288,7 @@ describe('MonsoonShield API Tests', () => {
                     },
                     alertLevel: 'Orange'
                 });
-            
+
             expect(response.status).toBe(200);
             expect(response.body).toHaveProperty('success', true);
             expect(response.body).toHaveProperty('alerts');
@@ -306,7 +306,7 @@ describe('MonsoonShield API Tests', () => {
                     insuranceStatus: 'Has home insurance',
                     location: 'Kerala'
                 });
-            
+
             expect(response.status).toBe(200);
             expect(response.body).toHaveProperty('success', true);
             expect(response.body).toHaveProperty('guidance');
@@ -323,7 +323,7 @@ describe('MonsoonShield API Tests', () => {
                     targetLanguage: 'hindi',
                     context: 'monsoon safety'
                 });
-            
+
             expect(response.status).toBe(200);
             expect(response.body).toHaveProperty('success', true);
             expect(response.body).toHaveProperty('original');
@@ -337,7 +337,7 @@ describe('MonsoonShield API Tests', () => {
                 .send({
                     targetLanguage: 'hindi'
                 });
-            
+
             expect(response.status).toBe(400);
             expect(response.body).toHaveProperty('error', 'Text and target language required');
         });
@@ -348,7 +348,7 @@ describe('MonsoonShield API Tests', () => {
                 .send({
                     text: 'Test text'
                 });
-            
+
             expect(response.status).toBe(400);
             expect(response.body).toHaveProperty('error', 'Text and target language required');
         });
@@ -364,7 +364,7 @@ describe('MonsoonShield API Tests', () => {
                     situation: 'Water level rising rapidly in our colony',
                     peopleAffected: '10-15 people'
                 });
-            
+
             expect(response.status).toBe(200);
             expect(response.body).toHaveProperty('success', true);
             expect(response.body).toHaveProperty('instructions');
@@ -380,7 +380,7 @@ describe('MonsoonShield API Tests', () => {
             const response = await request(app)
                 .post('/api/emergency-sos')
                 .send({});
-            
+
             expect(response.status).toBe(200);
             expect(response.body).toHaveProperty('emergencyContacts');
         });
@@ -396,7 +396,7 @@ describe('MonsoonShield API Tests', () => {
                     riskFactors: 'Low-lying area, near river',
                     existingResources: 'Community hall, water pumps'
                 });
-            
+
             expect(response.status).toBe(200);
             expect(response.body).toHaveProperty('success', true);
             expect(response.body).toHaveProperty('plan');
@@ -407,7 +407,7 @@ describe('MonsoonShield API Tests', () => {
     describe('Static File Serving', () => {
         it('should serve the main page', async () => {
             const response = await request(app).get('/');
-            
+
             expect(response.status).toBe(200);
         });
     });
@@ -415,7 +415,7 @@ describe('MonsoonShield API Tests', () => {
     describe('Error Handling', () => {
         it('should handle 404 for unknown API routes', async () => {
             const response = await request(app).get('/api/unknown-endpoint');
-            
+
             expect(response.status).toBe(404);
             expect(response.body).toHaveProperty('error', 'Not found');
         });
@@ -428,7 +428,7 @@ describe('MonsoonShield API Tests', () => {
                 .send({
                     message: 'What about <script>alert("xss")</script> monsoon?'
                 });
-            
+
             expect(response.status).toBe(200);
             expect(response.body).toHaveProperty('success', true);
         });
@@ -439,7 +439,7 @@ describe('MonsoonShield API Tests', () => {
                 .send({
                     message: '🌧️ मानसून 🌊 বর্ষা 🌪️'
                 });
-            
+
             expect(response.status).toBe(200);
             expect(response.body).toHaveProperty('success', true);
         });
@@ -451,7 +451,7 @@ describe('MonsoonShield API Tests', () => {
                     message: 'Test message',
                     language: 'invalid_language'
                 });
-            
+
             expect(response.status).toBe(200);
             // Should fallback to english
         });
@@ -460,7 +460,7 @@ describe('MonsoonShield API Tests', () => {
             const response = await request(app)
                 .post('/api/chat')
                 .send({ message: 'Test message' });
-            
+
             expect(response.body.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
         });
     });

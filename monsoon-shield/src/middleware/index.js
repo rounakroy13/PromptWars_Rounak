@@ -11,8 +11,16 @@ import { appConfig, securityConfig, rateLimitConfig } from '../config/index.js';
 import logger, { logRequest, logSecurity } from '../utils/logger.js';
 
 /**
+ * @typedef {import('express').Request} Request
+ * @typedef {import('express').Response} Response
+ * @typedef {import('express').NextFunction} NextFunction
+ * @typedef {import('express').RequestHandler} RequestHandler
+ * @typedef {import('express').ErrorRequestHandler} ErrorRequestHandler
+ */
+
+/**
  * Helmet security headers configuration
- * @returns {Function} Helmet middleware
+ * @returns {RequestHandler} Helmet middleware
  */
 export function helmetMiddleware() {
     return helmet({
@@ -20,12 +28,17 @@ export function helmetMiddleware() {
             directives: {
                 defaultSrc: ["'self'"],
                 styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com', 'https://cdnjs.cloudflare.com'],
+                styleSrcAttr: ["'unsafe-inline'"],
                 fontSrc: ["'self'", 'https://fonts.gstatic.com', 'https://cdnjs.cloudflare.com'],
-                scriptSrc: ["'self'", "'unsafe-inline'"],
+                scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+                scriptSrcAttr: ["'unsafe-inline'"],
                 imgSrc: ["'self'", 'data:', 'https:'],
-                connectSrc: ["'self'"],
+                connectSrc: ["'self'", 'https://monsoon-shield-production.up.railway.app'],
                 frameSrc: ["'none'"],
-                objectSrc: ["'none'"]
+                objectSrc: ["'none'"],
+                mediaSrc: ["'self'"],
+                baseUri: ["'self'"],
+                formAction: ["'self'"]
             }
         },
         crossOriginEmbedderPolicy: false
@@ -34,7 +47,7 @@ export function helmetMiddleware() {
 
 /**
  * CORS configuration middleware
- * @returns {Function} CORS middleware
+ * @returns {RequestHandler} CORS middleware
  */
 export function corsMiddleware() {
     return cors({
@@ -59,12 +72,16 @@ export function corsMiddleware() {
 }
 
 /**
+ * @typedef {Object} RateLimiterOptions
+ * @property {number} max - Maximum requests
+ * @property {string} message - Rate limit message
+ * @property {string} [name='general'] - Limiter name for logging
+ */
+
+/**
  * Creates a rate limiter with custom configuration
- * @param {Object} options - Rate limiter options
- * @param {number} options.max - Maximum requests
- * @param {string} options.message - Rate limit message
- * @param {string} [options.name='general'] - Limiter name for logging
- * @returns {Function} Rate limiter middleware
+ * @param {RateLimiterOptions} options - Rate limiter options
+ * @returns {RequestHandler} Rate limiter middleware
  */
 export function createRateLimiter({ max, message, name = 'general' }) {
     return rateLimit({
@@ -86,7 +103,7 @@ export function createRateLimiter({ max, message, name = 'general' }) {
 
 /**
  * General API rate limiter
- * @type {Function}
+ * @type {RequestHandler}
  */
 export const generalLimiter = createRateLimiter({
     max: rateLimitConfig.maxRequests,
@@ -96,7 +113,7 @@ export const generalLimiter = createRateLimiter({
 
 /**
  * AI endpoint rate limiter (stricter)
- * @type {Function}
+ * @type {RequestHandler}
  */
 export const aiLimiter = createRateLimiter({
     max: rateLimitConfig.aiMaxRequests,
@@ -106,7 +123,7 @@ export const aiLimiter = createRateLimiter({
 
 /**
  * Emergency endpoint rate limiter (more lenient)
- * @type {Function}
+ * @type {RequestHandler}
  */
 export const emergencyLimiter = createRateLimiter({
     max: rateLimitConfig.emergencyMaxRequests,
@@ -116,7 +133,7 @@ export const emergencyLimiter = createRateLimiter({
 
 /**
  * Compression middleware configuration
- * @returns {Function} Compression middleware
+ * @returns {RequestHandler} Compression middleware
  */
 export function compressionMiddleware() {
     return compression({
@@ -132,7 +149,7 @@ export function compressionMiddleware() {
 
 /**
  * Request logging middleware
- * @returns {Function} Logging middleware
+ * @returns {RequestHandler} Logging middleware
  */
 export function requestLogger() {
     return (req, res, next) => {
@@ -150,21 +167,22 @@ export function requestLogger() {
 /**
  * Async handler wrapper for route handlers
  * Catches errors and passes them to the error handler
- * @param {Function} fn - Async route handler
- * @returns {Function} Wrapped handler
+ * @param {function(Request, Response, NextFunction): Promise<any>} fn - Async route handler
+ * @returns {RequestHandler} Wrapped handler
  */
 export function asyncHandler(fn) {
-    return (req, res, next) => {
+    return /** @type {RequestHandler} */ ((req, res, next) => {
         Promise.resolve(fn(req, res, next)).catch(next);
-    };
+    });
 }
 
 /**
  * Global error handler middleware
  * @param {Error} err - Error object
- * @param {Object} req - Express request
- * @param {Object} res - Express response
- * @param {Function} _next - Next function
+ * @param {Request} req - Express request
+ * @param {Response} res - Express response
+ * @param {NextFunction} _next - Next function
+ * @returns {void}
  */
 export function errorHandler(err, req, res, _next) {
     logger.error('Unhandled error', {
@@ -182,8 +200,9 @@ export function errorHandler(err, req, res, _next) {
 
 /**
  * 404 Not Found handler
- * @param {Object} req - Express request
- * @param {Object} res - Express response
+ * @param {Request} req - Express request
+ * @param {Response} res - Express response
+ * @returns {void}
  */
 export function notFoundHandler(req, res) {
     res.status(404).json({
