@@ -86,13 +86,22 @@ export const cacheConfig = {
 };
 
 /**
+ * Default CORS origins (production + development)
+ */
+const DEFAULT_CORS_ORIGINS = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'https://monsoon-shield-production.up.railway.app'
+];
+
+/**
  * Security configuration
  * @type {SecurityConfig}
  */
 export const securityConfig = {
     corsOrigins: process.env.CORS_ORIGIN
-        ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
-        : ['http://localhost:3000', 'http://127.0.0.1:3000'],
+        ? [...new Set([...DEFAULT_CORS_ORIGINS, ...process.env.CORS_ORIGIN.split(',').map(o => o.trim())])]
+        : DEFAULT_CORS_ORIGINS,
     requestBodyLimit: '10kb'
 };
 
