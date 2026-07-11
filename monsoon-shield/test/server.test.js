@@ -23,25 +23,51 @@ vi.mock('groq-sdk', () => {
 });
 
 // Mock winston to prevent console spam during tests
-vi.mock('winston', () => ({
-    createLogger: vi.fn(() => ({
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-        debug: vi.fn()
-    })),
-    format: {
-        combine: vi.fn(),
-        timestamp: vi.fn(),
-        errors: vi.fn(),
-        json: vi.fn(),
-        colorize: vi.fn(),
-        simple: vi.fn()
-    },
-    transports: {
-        Console: vi.fn()
-    }
-}));
+vi.mock('winston', async (importOriginal) => {
+    const actual = await importOriginal();
+    return {
+        ...actual,
+        default: {
+            ...actual,
+            createLogger: vi.fn(() => ({
+                info: vi.fn(),
+                warn: vi.fn(),
+                error: vi.fn(),
+                debug: vi.fn()
+            })),
+            format: {
+                combine: vi.fn(() => ({})),
+                timestamp: vi.fn(() => ({})),
+                errors: vi.fn(() => ({})),
+                json: vi.fn(() => ({})),
+                colorize: vi.fn(() => ({})),
+                printf: vi.fn(() => ({})),
+                simple: vi.fn(() => ({}))
+            },
+            transports: {
+                Console: vi.fn()
+            }
+        },
+        createLogger: vi.fn(() => ({
+            info: vi.fn(),
+            warn: vi.fn(),
+            error: vi.fn(),
+            debug: vi.fn()
+        })),
+        format: {
+            combine: vi.fn(() => ({})),
+            timestamp: vi.fn(() => ({})),
+            errors: vi.fn(() => ({})),
+            json: vi.fn(() => ({})),
+            colorize: vi.fn(() => ({})),
+            printf: vi.fn(() => ({})),
+            simple: vi.fn(() => ({}))
+        },
+        transports: {
+            Console: vi.fn()
+        }
+    };
+});
 
 // Import the app after mocking
 let app;
