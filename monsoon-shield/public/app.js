@@ -1,10 +1,12 @@
 // MonsoonShield AI - Frontend Application
+// WCAG 2.1 AA Compliant
 
 // Global State
 let currentMode = 'preparedness';
 let userContext = {};
 let selectedLanguage = 'english';
 let isLoading = false;
+let lastFocusedElement = null; // For focus management
 
 // Mode configurations
 const MODE_CONFIG = {
@@ -773,5 +775,358 @@ if ('serviceWorker' in navigator) {
         
         // Initialize voice recognition
         initVoiceRecognition();
+        
+        // Initialize accessibility features
+        initAccessibility();
     });
 }
+
+// ============================================
+// ACCESSIBILITY FUNCTIONS (WCAG 2.1 AA)
+// ============================================
+
+/**
+ * Initialize accessibility features
+ */
+function initAccessibility() {
+    // Set up focus trap for modals
+    setupModalFocusManagement();
+    
+    // Add keyboard navigation
+    setupKeyboardNavigation();
+    
+    // Update ARIA states on navigation buttons
+    updateNavButtonAria();
+}
+
+/**
+ * Announce message to screen readers
+ * @param {string} message - Message to announce
+ * @param {string} priority - 'polite' or 'assertive'
+ */
+function announceToScreenReader(message, priority = 'polite') {
+    const liveRegion = document.getElementById('live-region');
+    if (liveRegion) {
+        liveRegion.setAttribute('aria-live', priority);
+        liveRegion.textContent = message;
+        
+        // Clear after announcement
+        setTimeout(() => {
+            liveRegion.textContent = '';
+        }, 1000);
+    }
+}
+
+/**
+ * Show toast notification (accessible)
+ * @param {string} message - Message to show
+ * @param {string} type - 'success', 'error', 'warning', or 'info'
+ * @param {number} duration - Duration in ms
+ */
+function showToast(message, type = 'info', duration = 5000) {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+    
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.setAttribute('role', 'alert');
+    toast.setAttribute('aria-live', 'assertive');
+    toast.innerHTML = `
+        <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : type === 'warning' ? 'fa-exclamation-triangle' : 'fa-info-circle'}" aria-hidden="true"></i>
+        <span>${message}</span>
+        <button class="toast-close" aria-label="Close notification" onclick="this.parentElement.remove()">
+            <i class="fas fa-times" aria-hidden="true"></i>
+        </button>
+    `;
+    
+    container.appendChild(toast);
+    
+    // Auto remove
+    setTimeout(() => {
+        if (toast.parentElement) {
+            toast.remove();
+        }
+    }, duration);
+    
+    // Also announce to screen readers
+    announceToScreenReader(message, type === 'error' ? 'assertive' : 'polite');
+}
+
+/**
+ * Setup modal focus management
+ */
+function setupModalFocusManagement() {
+    // Override modal open/close functions to include focus management
+    const originalOpenSOSModal = window.openSOSModal;
+    window.openSOSModal = function() {
+        lastFocusedElement = document.activeElement;
+        originalOpenSOSModal();
+        trapFocusInModal('sos-modal');
+        announceToScreenReader('Emergency SOS dialog opened. Use Tab to navigate, Escape to close.');
+    };
+    
+    const originalCloseSOSModal = window.closeSOSModal;
+    window.closeSOSModal = function() {
+        originalCloseSOSModal();
+        restoreFocus();
+        announceToScreenReader('Emergency dialog closed');
+    };
+    
+    const originalOpenContextModal = window.openContextModal;
+    window.openContextModal = function() {
+        lastFocusedElement = document.activeElement;
+        originalOpenContextModal();
+        trapFocusInModal('context-modal');
+        announceToScreenReader('Settings dialog opened');
+    };
+    
+    const originalCloseContextModal = window.closeContextModal;
+    window.closeContextModal = function() {
+        originalCloseContextModal();
+        restoreFocus();
+        announceToScreenReader('Settings dialog closed');
+    };
+    
+    const originalOpenPersonalizedPlan = window.openPersonalizedPlan;
+    window.openPersonalizedPlan = function() {
+        lastFocusedElement = document.activeElement;
+        originalOpenPersonalizedPlan();
+        trapFocusInModal('plan-modal');
+        announceToScreenReader('Create personalized plan dialog opened');
+    };
+    
+    const originalClosePlanModal = window.closePlanModal;
+    window.closePlanModal = function() {
+        originalClosePlanModal();
+        restoreFocus();
+        announceToScreenReader('Plan dialog closed');
+    };
+    
+    const originalOpenCommunityPlan = window.openCommunityPlan;
+    window.openCommunityPlan = function() {
+        lastFocusedElement = document.activeElement;
+        originalOpenCommunityPlan();
+        trapFocusInModal('community-modal');
+        announceToScreenReader('Community plan dialog opened');
+    };
+    
+    const originalCloseCommunityModal = window.closeCommunityModal;
+    window.closeCommunityModal = function() {
+        originalCloseCommunityModal();
+        restoreFocus();
+        announceToScreenReader('Community plan dialog closed');
+    };
+}
+
+/**
+ * Trap focus within a modal
+ * @param {string} modalId - ID of the modal
+ */
+function trapFocusInModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (!modal) return;
+    
+    const focusableElements = modal.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    
+    if (focusableElements.length === 0) return;
+    
+    const firstElement = focusableElements[0];
+    const lastElement = focusableElements[focusableElements.length - 1];
+    
+    // Focus first element
+    setTimeout(() => firstElement.focus(), 100);
+    
+    // Handle tab key
+    modal.addEventListener('keydown', function(e) {
+        if (e.key !== 'Tab') return;
+        
+        if (e.shiftKey) {
+            // Shift + Tab
+            if (document.activeElement === firstElement) {
+                e.preventDefault();
+                lastElement.focus();
+            }
+        } else {
+            // Tab
+            if (document.activeElement === lastElement) {
+                e.preventDefault();
+                firstElement.focus();
+            }
+        }
+    });
+}
+
+/**
+ * Restore focus to the element that opened the modal
+ */
+function restoreFocus() {
+    if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
+        setTimeout(() => lastFocusedElement.focus(), 100);
+    }
+}
+
+/**
+ * Setup keyboard navigation
+ */
+function setupKeyboardNavigation() {
+    // Add keyboard support for feature cards
+    document.addEventListener('keydown', (e) => {
+        const target = e.target;
+        
+        // Handle Enter/Space on feature cards
+        if (target.classList.contains('feature-card') && (e.key === 'Enter' || e.key === ' ')) {
+            e.preventDefault();
+            target.click();
+        }
+        
+        // Handle arrow key navigation in nav buttons
+        if (target.classList.contains('nav-btn')) {
+            const navButtons = Array.from(document.querySelectorAll('.nav-btn[data-mode]'));
+            const currentIndex = navButtons.indexOf(target);
+            
+            if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+                e.preventDefault();
+                const nextIndex = (currentIndex + 1) % navButtons.length;
+                navButtons[nextIndex].focus();
+            } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+                e.preventDefault();
+                const prevIndex = (currentIndex - 1 + navButtons.length) % navButtons.length;
+                navButtons[prevIndex].focus();
+            }
+        }
+    });
+}
+
+/**
+ * Update ARIA states on navigation buttons
+ */
+function updateNavButtonAria() {
+    // Override setMode to update aria-pressed
+    const originalSetMode = window.setMode;
+    window.setMode = function(mode) {
+        // Update aria-pressed states
+        document.querySelectorAll('.nav-btn[data-mode]').forEach(btn => {
+            btn.setAttribute('aria-pressed', btn.dataset.mode === mode ? 'true' : 'false');
+        });
+        
+        originalSetMode(mode);
+        
+        // Announce mode change
+        const config = MODE_CONFIG[mode];
+        announceToScreenReader(`Switched to ${config.title} mode. ${config.description}`);
+    };
+}
+
+/**
+ * Enhanced addMessage with accessibility
+ */
+const originalAddMessage = window.addMessage;
+window.addMessage = function(content, type) {
+    originalAddMessage(content, type);
+    
+    // Announce new message
+    if (type === 'assistant') {
+        announceToScreenReader('New response received from MonsoonShield AI');
+    }
+};
+
+/**
+ * Enhanced saveContext with accessibility
+ */
+const originalSaveContext = window.saveContext;
+window.saveContext = function() {
+    originalSaveContext();
+    showToast('Your context has been saved successfully!', 'success');
+};
+
+/**
+ * Enhanced generatePersonalizedPlan with accessibility
+ */
+const originalGeneratePlan = window.generatePersonalizedPlan;
+window.generatePersonalizedPlan = async function() {
+    announceToScreenReader('Generating your personalized plan. Please wait.');
+    await originalGeneratePlan();
+    announceToScreenReader('Your personalized plan is ready.');
+    
+    // Focus on the result
+    const planContent = document.getElementById('plan-content');
+    if (planContent) {
+        planContent.focus();
+    }
+};
+
+/**
+ * Enhanced generateCommunityPlan with accessibility
+ */
+const originalGenerateCommunityPlan = window.generateCommunityPlan;
+window.generateCommunityPlan = async function() {
+    announceToScreenReader('Generating community plan. Please wait.');
+    await originalGenerateCommunityPlan();
+    announceToScreenReader('Community plan is ready.');
+    
+    // Focus on the result
+    const communityContent = document.getElementById('community-content');
+    if (communityContent) {
+        communityContent.focus();
+    }
+};
+
+/**
+ * Enhanced sendMessage with accessibility
+ */
+const originalSendMessage = window.sendMessage;
+window.sendMessage = async function() {
+    const input = document.getElementById('chat-input');
+    const message = input.value.trim();
+    
+    if (!message) {
+        announceToScreenReader('Please enter a message before sending');
+        return;
+    }
+    
+    announceToScreenReader('Message sent. Waiting for response.');
+    await originalSendMessage();
+};
+
+/**
+ * Enhanced getEmergencyHelp with accessibility
+ */
+const originalGetEmergencyHelp = window.getEmergencyHelp;
+window.getEmergencyHelp = async function() {
+    announceToScreenReader('Processing emergency request. Please wait.', 'assertive');
+    await originalGetEmergencyHelp();
+    announceToScreenReader('Emergency guidance received. Please review the instructions carefully.', 'assertive');
+};
+
+/**
+ * Enhanced voice input functions with accessibility
+ */
+const originalStartVoiceInput = window.startVoiceInput;
+window.startVoiceInput = async function() {
+    await originalStartVoiceInput();
+    if (isListening) {
+        announceToScreenReader('Voice input started. Speak now.', 'assertive');
+        document.getElementById('voice-btn').setAttribute('aria-pressed', 'true');
+    }
+};
+
+const originalStopVoiceInput = window.stopVoiceInput;
+window.stopVoiceInput = function() {
+    originalStopVoiceInput();
+    announceToScreenReader('Voice input stopped');
+    document.getElementById('voice-btn').setAttribute('aria-pressed', 'false');
+};
+
+// Add skip to chat functionality
+document.addEventListener('DOMContentLoaded', () => {
+    // Focus chat input when user presses / key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) {
+            e.preventDefault();
+            document.getElementById('chat-input').focus();
+            announceToScreenReader('Chat input focused. Type your message.');
+        }
+    });
+});
