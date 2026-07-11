@@ -374,5 +374,3 @@ For questions or support, please open an issue in the repository.
 ---
 
 **Built with ❤️ for Monsoon Safety by Rounak**
-
-*Powered by Groq GenAI*

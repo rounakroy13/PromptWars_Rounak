@@ -1,22 +1,70 @@
 # Dependencies
 node_modules/
 
-# Environment files
+# Environment files - CRITICAL: Never commit these!
 .env
+.env.local
+.env.production
+.env.staging
+.env.*.local
+
+# Note: .env.example should NOT contain real credentials
+# Only use placeholder values like "your_api_key_here"
 
 # Logs
 logs/
 *.log
 npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # OS files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 
-# IDE
+# IDE and Editor
 .vscode/
 .idea/
+*.swp
+*.swo
+*.sublime-workspace
+*.sublime-project
 
-# Build
+# Build outputs
 dist/
 build/
+.next/
+out/
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Cache
+.cache/
+.eslintcache
+.npm/
+
+# Security - Never commit these!
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+secrets/
+credentials/
+
+# API keys backup files
+*_backup.env
+*.env.backup

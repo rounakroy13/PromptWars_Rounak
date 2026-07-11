@@ -1,6 +1,6 @@
 {
   "name": "monsoon-shield",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "GenAI-powered Monsoon Preparedness & Citizen Assistance Platform using Groq",
   "main": "server.js",
   "type": "module",
@@ -9,7 +9,13 @@
     "dev": "nodemon server.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"**/*.{js,json,md,html,css}\"",
+    "format:check": "prettier --check \"**/*.{js,json,md,html,css}\"",
+    "security-check": "npm audit --audit-level=moderate",
+    "validate": "npm run lint && npm run format:check && npm run test"
   },
   "keywords": [
     "monsoon",
@@ -24,17 +30,25 @@
   "author": "Rounak",
   "license": "MIT",
   "dependencies": {
+    "compression": "^1.7.4",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
-    "express": "^4.18.2",
+    "express": "^4.21.0",
+    "express-rate-limit": "^7.4.0",
+    "express-validator": "^7.2.0",
     "groq-sdk": "^0.5.0",
-    "node-fetch": "^3.3.2"
+    "helmet": "^7.1.0",
+    "node-cache": "^5.1.2",
+    "node-fetch": "^3.3.2",
+    "winston": "^3.14.2",
+    "xss": "^1.0.15"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "^1.2.0",
+    "eslint": "^9.9.0",
     "nodemon": "^3.0.2",
     "supertest": "^6.3.3",
-    "vitest": "^1.2.0",
-    "@vitest/coverage-v8": "^1.2.0"
+    "vitest": "^1.2.0"
   },
   "engines": {
     "node": ">=20.0.0"

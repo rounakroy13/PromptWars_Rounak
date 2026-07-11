@@ -4,815 +4,670 @@ import dotenv from 'dotenv';
 import Groq from 'groq-sdk';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+import compression from 'compression';
+import NodeCache from 'node-cache';
+import xss from 'xss';
+import winston from 'winston';
 
+// Load environment variables
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-// Initialize Groq client
-const groq = new Groq({
-    apiKey: process.env.GROQ_API_KEY
+// ============================================
+// LOGGING CONFIGURATION
+// ============================================
+const logger = winston.createLogger({
+    level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
+    format: winston.format.combine(
+        winston.format.timestamp(),
+        winston.format.errors({ stack: true }),
+        winston.format.json()
+    ),
+    defaultMeta: { service: 'monsoon-shield' },
+    transports: [
+        new winston.transports.Console({
+            format: winston.format.combine(
+                winston.format.colorize(),
+                winston.format.simple()
+            )
+        })
+    ]
 });
 
-// Middleware
-app.use(cors());
-app.use(express.json());
-app.use(express.static(join(__dirname, 'public')));
+// ============================================
+// CONFIGURATION VALIDATION
+// ============================================
+const requiredEnvVars = ['GROQ_API_KEY'];
+const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
 
-// System prompts for different features
-const SYSTEM_PROMPTS = {
-    preparedness: `You are MonsoonShield AI, an expert in monsoon preparedness and disaster management. 
-    You help individuals, families, and communities prepare for the monsoon season in India and South Asia.
-    
-    Your expertise includes:
-    - Home preparation (waterproofing, drainage, electrical safety)
-    - Emergency kit preparation
-    - Document and valuable protection
-    - Health and hygiene during monsoons
-    - Vehicle and transportation safety
-    - Agricultural preparedness
-    - Community-level preparedness
-    
-    Always provide practical, actionable advice. Consider the user's location, family size, and specific concerns.
-    Format your response with clear sections and bullet points for easy reading.
-    Include estimated costs where applicable (in INR).`,
+if (missingVars.length > 0) {
+    logger.error(`Missing required environment variables: ${missingVars.join(', ')}`);
+    logger.error('Please check your .env file and ensure all required variables are set.');
+    process.exit(1);
+}
 
-    emergency: `You are MonsoonShield Emergency AI, specializing in real-time emergency guidance during severe weather events.
-    
-    Your role:
-    - Provide immediate, life-saving instructions
-    - Guide evacuation procedures
-    - First aid for weather-related injuries
-    - Flood safety protocols
-    - Lightning safety
-    - Landslide awareness
-    - Power outage management
-    
-    Be calm, clear, and concise. Prioritize safety above all else.
-    Always recommend contacting emergency services (NDRF: 9711077372, SDMA) for serious situations.`,
+// Validate API key format (basic check)
+if (process.env.GROQ_API_KEY && !process.env.GROQ_API_KEY.startsWith('gsk_')) {
+    logger.warn('GROQ_API_KEY does not appear to be in the expected format (should start with gsk_)');
+}
 
-    travel: `You are MonsoonShield Travel Advisory AI, helping users navigate monsoon travel challenges.
-    
-    Your expertise:
-    - Road safety during monsoons
-    - Flight and train disruption guidance
-    - Route planning for safer travel
-    - Vehicle preparation for monsoon driving
-    - Travel insurance recommendations
-    - Destination-specific monsoon information
-    - Public transport alternatives
-    
-    Provide specific, location-aware advice. Include backup plans and emergency contacts.`,
+const app = express();
+const PORT = process.env.PORT || 3000;
+const NODE_ENV = process.env.NODE_ENV || 'development';
 
-    health: `You are MonsoonShield Health AI, focusing on monsoon-related health concerns.
-    
-    Your expertise:
-    - Waterborne disease prevention (cholera, typhoid, jaundice)
-    - Vector-borne disease prevention (dengue, malaria, chikungunya)
-    - Food safety during monsoons
-    - Skin infections and fungal issues
-    - Respiratory problems
-    - Mental health during prolonged monsoons
-    - Children and elderly care
-    
-    Provide medically accurate but easy-to-understand advice. Always recommend consulting a doctor for serious symptoms.`,
+// ============================================
+// CACHE CONFIGURATION
+// ============================================
+const cache = new NodeCache({
+    stdTTL: 300,
+    checkperiod: 60,
+    useClones: false
+});
 
-    multilingual: `You are MonsoonShield Multilingual AI. You can communicate in multiple Indian languages.
-    
-    Supported languages:
-    - Hindi (हिंदी)
-    - Tamil (தமிழ்)
-    - Telugu (తెలుగు)
-    - Bengali (বাংলা)
-    - Marathi (मराठी)
-    - Gujarati (ગુજરાતી)
-    - Kannada (ಕನ್ನಡ)
-    - Malayalam (മലയാളം)
-    - Punjabi (ਪੰਜਾਬੀ)
-    - Odia (ଓଡ଼ିଆ)
-    - English
-    
-    Detect the user's preferred language and respond in that language.
-    If asked to translate, provide accurate translations while maintaining the essential safety information.`,
+// ============================================
+// SECURITY MIDDLEWARE
+// ============================================
 
-    checklist: `You are MonsoonShield Checklist AI, creating personalized emergency and preparedness checklists.
-    
-    You create customized checklists based on:
-    - Family composition (children, elderly, pets)
-    - Living situation (apartment, house, ground floor, upper floor)
-    - Location (coastal, hilly, urban, rural)
-    - Medical needs
-    - Budget constraints
-    - Time available for preparation
-    
-    Format checklists with checkboxes (☐) and organize by category and priority.
-    Include shopping lists with estimated costs in INR.`,
+// Helmet security headers
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
+            fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com"],
+            scriptSrc: ["'self'", "'unsafe-inline'"],
+            imgSrc: ["'self'", "data:", "https:"],
+            connectSrc: ["'self'"],
+            frameSrc: ["'none'"],
+            objectSrc: ["'none'"]
+        }
+    },
+    crossOriginEmbedderPolicy: false
+}));
 
-    realtime: `You are MonsoonShield Real-time AI, providing weather-aware guidance based on current conditions.
-    
-    When given weather data, you:
-    - Interpret weather alerts and warnings
-    - Provide hourly recommendations
-    - Suggest activities based on weather windows
-    - Alert users to upcoming severe weather
-    - Guide timing for outdoor activities
-    - Recommend when to stay indoors
-    
-    Be proactive and specific about timing. Use the 24-hour format for clarity.`,
+// CORS configuration
+const allowedOrigins = process.env.CORS_ORIGIN 
+    ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
+    : ['http://localhost:3000', 'http://127.0.0.1:3000'];
 
-    recovery: `You are MonsoonShield Recovery AI, helping users recover after monsoon damage.
-    
-    Your expertise:
-    - Damage assessment guidance
-    - Insurance claim procedures
-    - Government relief schemes (SDRF, NDRF assistance)
-    - Home repair prioritization
-    - Water damage restoration
-    - Mold prevention and removal
-    - Document replacement procedures
-    - Mental health support resources
-    
-    Be empathetic while providing practical step-by-step guidance.`
+app.use(cors({
+    origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.includes(origin) || NODE_ENV === 'development') {
+            callback(null, true);
+        } else {
+            logger.warn(`Blocked CORS request from origin: ${origin}`);
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    methods: ['GET', 'POST'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+    maxAge: 86400
+}));
+
+// Rate limiting - General API
+const generalLimiter = rateLimit({
+    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 60 * 1000,
+    max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 30,
+    message: { error: 'Too many requests', message: 'Please wait before making more requests', retryAfter: 60 },
+    standardHeaders: true,
+    legacyHeaders: false,
+    handler: (req, res, next, options) => {
+        logger.warn(`Rate limit exceeded for IP: ${req.ip}`);
+        res.status(429).json(options.message);
+    }
+});
+
+// Stricter rate limiting for AI endpoints
+const aiLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 10,
+    message: { error: 'AI rate limit exceeded', message: 'Too many AI requests. Please wait.', retryAfter: 60 },
+    standardHeaders: true,
+    legacyHeaders: false,
+    handler: (req, res, next, options) => {
+        logger.warn(`AI rate limit exceeded for IP: ${req.ip}`);
+        res.status(429).json(options.message);
+    }
+});
+
+// Emergency endpoint has more lenient limits
+const emergencyLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 20,
+    message: {
+        error: 'Rate limit exceeded',
+        message: 'Please call emergency services directly: NDRF: 9711077372, Police: 100',
+        emergencyContacts: { NDRF: '9711077372', Police: '100', Ambulance: '102' }
+    }
+});
+
+app.use('/api/', generalLimiter);
+
+// Compression
+app.use(compression({
+    filter: (req, res) => {
+        if (req.headers['x-no-compression']) return false;
+        return compression.filter(req, res);
+    },
+    level: 6
+}));
+
+// Body parsing with size limits
+app.use(express.json({ limit: '10kb', strict: true }));
+app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+
+// Static files with caching
+app.use(express.static(join(__dirname, 'public'), {
+    maxAge: NODE_ENV === 'production' ? '1d' : 0,
+    etag: true,
+    lastModified: true
+}));
+
+// Request logging
+app.use((req, res, next) => {
+    const start = Date.now();
+    res.on('finish', () => {
+        logger.info({
+            method: req.method,
+            url: req.url,
+            status: res.statusCode,
+            duration: `${Date.now() - start}ms`,
+            ip: req.ip
+        });
+    });
+    next();
+});
+
+// ============================================
+// INPUT SANITIZATION
+// ============================================
+const sanitizeInput = (input) => {
+    if (typeof input !== 'string') return input;
+    return xss(input.trim().substring(0, 2000));
 };
 
-// API Endpoints
+const sanitizeObject = (obj) => {
+    if (!obj || typeof obj !== 'object') return obj;
+    const sanitized = {};
+    for (const [key, value] of Object.entries(obj)) {
+        if (typeof value === 'string') {
+            sanitized[key] = sanitizeInput(value);
+        } else if (typeof value === 'object' && value !== null) {
+            sanitized[key] = sanitizeObject(value);
+        } else {
+            sanitized[key] = value;
+        }
+    }
+    return sanitized;
+};
+
+const VALID_MODES = ['preparedness', 'emergency', 'travel', 'health', 'multilingual', 'checklist', 'realtime', 'recovery'];
+const validateMode = (mode) => VALID_MODES.includes(mode) ? mode : 'preparedness';
+
+const VALID_LANGUAGES = ['english', 'hindi', 'tamil', 'telugu', 'bengali', 'marathi', 'gujarati', 'kannada', 'malayalam', 'punjabi', 'odia'];
+const validateLanguage = (lang) => VALID_LANGUAGES.includes(lang?.toLowerCase()) ? lang.toLowerCase() : 'english';
+
+// ============================================
+// GROQ CLIENT
+// ============================================
+let groq;
+try {
+    groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+    logger.info('Groq client initialized successfully');
+} catch (error) {
+    logger.error('Failed to initialize Groq client:', error);
+    process.exit(1);
+}
+
+// ============================================
+// OPTIMIZED SYSTEM PROMPTS
+// ============================================
+const SYSTEM_PROMPTS = {
+    preparedness: `You are MonsoonShield AI, a monsoon preparedness expert for India/South Asia. Expertise: Home waterproofing, drainage, electrical safety, emergency kits, document protection, health/hygiene, vehicle safety, agricultural prep. Guidelines: Practical advice, clear sections/bullets, costs in INR, consider user context.`,
+    
+    emergency: `You are MonsoonShield Emergency AI. Role: Life-saving instructions, evacuation, first aid, flood/lightning/landslide safety. Be calm, clear, concise. Prioritize safety. Contacts: NDRF: 9711077372, Police: 100, Ambulance: 102.`,
+    
+    travel: `You are MonsoonShield Travel Advisory AI. Expertise: Road safety, flight/train disruptions, route planning, vehicle prep. Provide location-aware advice with backup plans and emergency contacts.`,
+    
+    health: `You are MonsoonShield Health AI. Expertise: Waterborne diseases (cholera, typhoid), vector-borne (dengue, malaria), food safety, skin infections. Medically accurate, easy to understand. Always recommend consulting doctors for serious symptoms.`,
+    
+    multilingual: `You are MonsoonShield Multilingual AI. Languages: Hindi, Tamil, Telugu, Bengali, Marathi, Gujarati, Kannada, Malayalam, Punjabi, Odia, English. Detect user's language and respond accordingly while maintaining safety information.`,
+    
+    checklist: `You are MonsoonShield Checklist AI. Customize based on: Family, living situation, location, medical needs, budget. Format: ☐ checkboxes, organize by priority, include costs in INR.`,
+    
+    realtime: `You are MonsoonShield Real-time AI. Role: Interpret weather alerts, hourly recommendations, activity suggestions, severe weather alerts. Be proactive, use 24-hour format.`,
+    
+    recovery: `You are MonsoonShield Recovery AI. Expertise: Damage assessment, insurance claims, government relief (SDRF/NDRF), repairs, water damage restoration, mold prevention. Be empathetic, provide step-by-step guidance.`
+};
+
+// ============================================
+// CACHE HELPERS
+// ============================================
+const generateCacheKey = (endpoint, params) => {
+    const sorted = Object.keys(params).sort().map(k => `${k}:${params[k]}`).join('|');
+    return `${endpoint}:${sorted}`;
+};
+
+const getCachedResponse = (key) => cache.get(key);
+const setCachedResponse = (key, value, ttl = 300) => cache.set(key, value, ttl);
+
+// ============================================
+// ERROR HANDLER
+// ============================================
+const asyncHandler = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+
+// ============================================
+// API ENDPOINTS
+// ============================================
 
 // Health check
 app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', service: 'MonsoonShield API' });
+    res.json({
+        status: 'ok',
+        service: 'MonsoonShield API',
+        version: '1.1.0',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        cache: { keys: cache.keys().length, hits: cache.getStats().hits, misses: cache.getStats().misses }
+    });
 });
 
 // Main chat endpoint
-app.post('/api/chat', async (req, res) => {
-    try {
-        const { message, mode = 'preparedness', context = {}, language = 'english' } = req.body;
+app.post('/api/chat', aiLimiter, asyncHandler(async (req, res) => {
+    const { message, mode = 'preparedness', context = {}, language = 'english' } = req.body;
 
-        if (!message) {
-            return res.status(400).json({ error: 'Message is required' });
-        }
-
-        const systemPrompt = SYSTEM_PROMPTS[mode] || SYSTEM_PROMPTS.preparedness;
-        
-        let enhancedPrompt = systemPrompt;
-        
-        // Add context to system prompt
-        if (context.location) {
-            enhancedPrompt += `\n\nUser's location: ${context.location}`;
-        }
-        if (context.familySize) {
-            enhancedPrompt += `\nFamily size: ${context.familySize}`;
-        }
-        if (context.housingType) {
-            enhancedPrompt += `\nHousing type: ${context.housingType}`;
-        }
-        if (context.weatherData) {
-            enhancedPrompt += `\nCurrent weather: ${JSON.stringify(context.weatherData)}`;
-        }
-        if (language !== 'english') {
-            enhancedPrompt += `\n\nIMPORTANT: Respond in ${language}. The user prefers communication in ${language}.`;
-        }
-
-        const completion = await groq.chat.completions.create({
-            messages: [
-                { role: 'system', content: enhancedPrompt },
-                { role: 'user', content: message }
-            ],
-            model: 'llama-3.3-70b-versatile',
-            temperature: 0.7,
-            max_tokens: 2048,
-            top_p: 1,
-            stream: false
-        });
-
-        const response = completion.choices[0]?.message?.content || 'I apologize, but I could not generate a response. Please try again.';
-
-        res.json({
-            success: true,
-            response,
-            mode,
-            timestamp: new Date().toISOString()
-        });
-
-    } catch (error) {
-        console.error('Chat API Error:', error);
-        res.status(500).json({
-            error: 'Failed to process request',
-            message: error.message
-        });
+    if (!message || typeof message !== 'string') {
+        return res.status(400).json({ error: 'Invalid request', message: 'Message is required' });
     }
-});
 
-// Personalized preparedness plan endpoint
-app.post('/api/preparedness-plan', async (req, res) => {
-    try {
-        const {
-            location,
-            familySize,
-            hasChildren,
-            hasElderly,
-            hasPets,
-            housingType,
-            floor,
-            hasBasement,
-            budget,
-            healthConditions,
-            vehicleType,
-            language = 'english'
-        } = req.body;
+    const sanitizedMessage = sanitizeInput(message);
+    const sanitizedContext = sanitizeObject(context);
+    const validatedMode = validateMode(mode);
+    const validatedLanguage = validateLanguage(language);
 
-        const userContext = `
-        Create a comprehensive, personalized monsoon preparedness plan for:
-        - Location: ${location || 'Not specified'}
-        - Family Size: ${familySize || 'Not specified'}
-        - Children in household: ${hasChildren ? 'Yes' : 'No'}
-        - Elderly in household: ${hasElderly ? 'Yes' : 'No'}
-        - Pets: ${hasPets ? 'Yes' : 'No'}
-        - Housing Type: ${housingType || 'Not specified'}
-        - Floor Level: ${floor || 'Not specified'}
-        - Has Basement: ${hasBasement ? 'Yes' : 'No'}
-        - Budget: ₹${budget || 'Flexible'}
-        - Health Conditions: ${healthConditions || 'None specified'}
-        - Vehicle: ${vehicleType || 'None'}
-
-        Provide a detailed plan with:
-        1. Priority Actions (do immediately)
-        2. Home Preparation Checklist
-        3. Emergency Kit Items with costs
-        4. Important Contacts and Resources
-        5. Weekly Maintenance Tasks during Monsoon
-        6. Emergency Evacuation Plan (if applicable)
-        `;
-
-        let systemPrompt = SYSTEM_PROMPTS.preparedness;
-        if (language !== 'english') {
-            systemPrompt += `\n\nIMPORTANT: Respond in ${language}.`;
-        }
-
-        const completion = await groq.chat.completions.create({
-            messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: userContext }
-            ],
-            model: 'llama-3.3-70b-versatile',
-            temperature: 0.7,
-            max_tokens: 3000,
-            top_p: 1,
-            stream: false
-        });
-
-        const plan = completion.choices[0]?.message?.content || 'Unable to generate plan. Please try again.';
-
-        res.json({
-            success: true,
-            plan,
-            generatedFor: { location, familySize, housingType },
-            timestamp: new Date().toISOString()
-        });
-
-    } catch (error) {
-        console.error('Preparedness Plan API Error:', error);
-        res.status(500).json({
-            error: 'Failed to generate preparedness plan',
-            message: error.message
-        });
+    if (sanitizedMessage.length < 2) {
+        return res.status(400).json({ error: 'Invalid request', message: 'Message too short' });
     }
-});
+
+    // Check cache
+    const cacheKey = generateCacheKey('chat', { msg: sanitizedMessage.substring(0, 50), mode: validatedMode, lang: validatedLanguage });
+    if (validatedMode !== 'emergency') {
+        const cached = getCachedResponse(cacheKey);
+        if (cached) return res.json({ ...cached, cached: true });
+    }
+
+    let systemPrompt = SYSTEM_PROMPTS[validatedMode] || SYSTEM_PROMPTS.preparedness;
+    if (sanitizedContext.location) systemPrompt += `\nUser location: ${sanitizedContext.location}`;
+    if (validatedLanguage !== 'english') systemPrompt += `\nRespond in ${validatedLanguage}.`;
+
+    const completion = await groq.chat.completions.create({
+        messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: sanitizedMessage }
+        ],
+        model: 'llama-3.3-70b-versatile',
+        temperature: 0.7,
+        max_tokens: 2048
+    });
+
+    const response = completion.choices[0]?.message?.content || 'Unable to generate response. Please try again.';
+    const result = { success: true, response, mode: validatedMode, timestamp: new Date().toISOString() };
+
+    if (validatedMode !== 'emergency') setCachedResponse(cacheKey, result, 300);
+    res.json(result);
+}));
+
+// Preparedness plan endpoint
+app.post('/api/preparedness-plan', aiLimiter, asyncHandler(async (req, res) => {
+    const { location, familySize, hasChildren, hasElderly, hasPets, housingType, floor, hasBasement, budget, healthConditions, vehicleType, language = 'english' } = req.body;
+
+    const data = {
+        location: sanitizeInput(location),
+        familySize: sanitizeInput(familySize),
+        housingType: sanitizeInput(housingType),
+        floor: sanitizeInput(floor),
+        budget: sanitizeInput(budget),
+        healthConditions: sanitizeInput(healthConditions),
+        vehicleType: sanitizeInput(vehicleType),
+        hasChildren: Boolean(hasChildren),
+        hasElderly: Boolean(hasElderly),
+        hasPets: Boolean(hasPets),
+        hasBasement: Boolean(hasBasement),
+        language: validateLanguage(language)
+    };
+
+    const prompt = `Create personalized monsoon preparedness plan:
+Location: ${data.location || 'Not specified'}, Family: ${data.familySize || 'Not specified'}
+Children: ${data.hasChildren ? 'Yes' : 'No'}, Elderly: ${data.hasElderly ? 'Yes' : 'No'}, Pets: ${data.hasPets ? 'Yes' : 'No'}
+Housing: ${data.housingType || 'Not specified'}, Floor: ${data.floor || 'Not specified'}
+Budget: ₹${data.budget || 'Flexible'}, Health: ${data.healthConditions || 'None'}, Vehicle: ${data.vehicleType || 'None'}
+Include: Priority Actions, Home Prep Checklist, Emergency Kit with costs, Contacts, Weekly Tasks, Evacuation Plan.`;
+
+    let systemPrompt = SYSTEM_PROMPTS.preparedness;
+    if (data.language !== 'english') systemPrompt += `\nRespond in ${data.language}.`;
+
+    const completion = await groq.chat.completions.create({
+        messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: prompt }],
+        model: 'llama-3.3-70b-versatile',
+        temperature: 0.7,
+        max_tokens: 3000
+    });
+
+    res.json({
+        success: true,
+        plan: completion.choices[0]?.message?.content || 'Unable to generate plan.',
+        generatedFor: { location: data.location, familySize: data.familySize, housingType: data.housingType },
+        timestamp: new Date().toISOString()
+    });
+}));
 
 // Emergency checklist endpoint
-app.post('/api/emergency-checklist', async (req, res) => {
-    try {
-        const { 
-            checklistType = 'general',
-            familySize,
-            specialNeeds,
-            language = 'english'
-        } = req.body;
+app.post('/api/emergency-checklist', aiLimiter, asyncHandler(async (req, res) => {
+    const { checklistType = 'general', familySize, specialNeeds, language = 'english' } = req.body;
+    const data = {
+        checklistType: sanitizeInput(checklistType),
+        familySize: sanitizeInput(familySize),
+        specialNeeds: sanitizeInput(specialNeeds),
+        language: validateLanguage(language)
+    };
 
-        const checklistPrompt = `
-        Generate a detailed ${checklistType} emergency checklist for monsoon season.
-        Family size: ${familySize || 'Average family of 4'}
-        Special needs: ${specialNeeds || 'None'}
-        
-        Include:
-        1. Essential Items (water, food, medicines)
-        2. Documents to Secure
-        3. Emergency Contacts
-        4. First Aid Supplies
-        5. Communication Tools
-        6. Shelter Supplies
-        7. Personal Items
-        
-        Format each item with ☐ checkbox, quantity needed, and estimated cost in INR.
-        Organize by priority: CRITICAL, HIGH, MEDIUM, LOW
-        `;
+    const prompt = `Generate ${data.checklistType} emergency checklist for monsoon. Family: ${data.familySize || '4'}, Needs: ${data.specialNeeds || 'None'}. Include: Essentials, Documents, Contacts, First Aid, Communication, Shelter. Format: ☐ checkbox, quantity, cost INR. Priority: CRITICAL/HIGH/MEDIUM/LOW.`;
 
-        let systemPrompt = SYSTEM_PROMPTS.checklist;
-        if (language !== 'english') {
-            systemPrompt += `\n\nIMPORTANT: Respond in ${language}.`;
-        }
+    let systemPrompt = SYSTEM_PROMPTS.checklist;
+    if (data.language !== 'english') systemPrompt += `\nRespond in ${data.language}.`;
 
-        const completion = await groq.chat.completions.create({
-            messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: checklistPrompt }
-            ],
-            model: 'llama-3.3-70b-versatile',
-            temperature: 0.6,
-            max_tokens: 2500,
-            top_p: 1,
-            stream: false
-        });
+    const completion = await groq.chat.completions.create({
+        messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: prompt }],
+        model: 'llama-3.3-70b-versatile',
+        temperature: 0.6,
+        max_tokens: 2500
+    });
 
-        const checklist = completion.choices[0]?.message?.content || 'Unable to generate checklist.';
-
-        res.json({
-            success: true,
-            checklist,
-            type: checklistType,
-            timestamp: new Date().toISOString()
-        });
-
-    } catch (error) {
-        console.error('Checklist API Error:', error);
-        res.status(500).json({
-            error: 'Failed to generate checklist',
-            message: error.message
-        });
-    }
-});
+    res.json({
+        success: true,
+        checklist: completion.choices[0]?.message?.content || 'Unable to generate checklist.',
+        type: data.checklistType,
+        timestamp: new Date().toISOString()
+    });
+}));
 
 // Travel advisory endpoint
-app.post('/api/travel-advisory', async (req, res) => {
-    try {
-        const {
-            origin,
-            destination,
-            travelDate,
-            modeOfTravel,
-            weatherConditions,
-            language = 'english'
-        } = req.body;
+app.post('/api/travel-advisory', aiLimiter, asyncHandler(async (req, res) => {
+    const { origin, destination, travelDate, modeOfTravel, weatherConditions, language = 'english' } = req.body;
+    const data = {
+        origin: sanitizeInput(origin),
+        destination: sanitizeInput(destination),
+        travelDate: sanitizeInput(travelDate),
+        modeOfTravel: sanitizeInput(modeOfTravel),
+        weatherConditions: sanitizeInput(weatherConditions),
+        language: validateLanguage(language)
+    };
 
-        const travelPrompt = `
-        Provide a comprehensive monsoon travel advisory:
-        - From: ${origin || 'Not specified'}
-        - To: ${destination || 'Not specified'}
-        - Date: ${travelDate || 'Upcoming days'}
-        - Mode of Travel: ${modeOfTravel || 'Not specified'}
-        - Current Weather Conditions: ${weatherConditions || 'Monsoon season'}
-        
-        Include:
-        1. Safety Assessment (Safe/Caution/Avoid)
-        2. Route Recommendations
-        3. Weather Forecast Impact
-        4. Essential Items to Carry
-        5. Emergency Contacts for Route
-        6. Alternative Routes/Modes
-        7. Timing Recommendations
-        8. Vehicle Preparation Tips (if applicable)
-        `;
+    const prompt = `Monsoon travel advisory: From ${data.origin || 'Not specified'} to ${data.destination || 'Not specified'}, Date: ${data.travelDate || 'Upcoming'}, Mode: ${data.modeOfTravel || 'Not specified'}. Include: Safety Assessment, Routes, Weather Impact, Essentials, Contacts, Alternatives, Timing.`;
 
-        let systemPrompt = SYSTEM_PROMPTS.travel;
-        if (language !== 'english') {
-            systemPrompt += `\n\nIMPORTANT: Respond in ${language}.`;
-        }
+    let systemPrompt = SYSTEM_PROMPTS.travel;
+    if (data.language !== 'english') systemPrompt += `\nRespond in ${data.language}.`;
 
-        const completion = await groq.chat.completions.create({
-            messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: travelPrompt }
-            ],
-            model: 'llama-3.3-70b-versatile',
-            temperature: 0.7,
-            max_tokens: 2000,
-            top_p: 1,
-            stream: false
-        });
+    const completion = await groq.chat.completions.create({
+        messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: prompt }],
+        model: 'llama-3.3-70b-versatile',
+        temperature: 0.7,
+        max_tokens: 2000
+    });
 
-        const advisory = completion.choices[0]?.message?.content || 'Unable to generate travel advisory.';
-
-        res.json({
-            success: true,
-            advisory,
-            route: { origin, destination },
-            timestamp: new Date().toISOString()
-        });
-
-    } catch (error) {
-        console.error('Travel Advisory API Error:', error);
-        res.status(500).json({
-            error: 'Failed to generate travel advisory',
-            message: error.message
-        });
-    }
-});
+    res.json({
+        success: true,
+        advisory: completion.choices[0]?.message?.content || 'Unable to generate advisory.',
+        route: { origin: data.origin, destination: data.destination },
+        timestamp: new Date().toISOString()
+    });
+}));
 
 // Health guidance endpoint
-app.post('/api/health-guidance', async (req, res) => {
-    try {
-        const {
-            symptoms,
-            concernType,
-            ageGroup,
-            existingConditions,
-            language = 'english'
-        } = req.body;
+app.post('/api/health-guidance', aiLimiter, asyncHandler(async (req, res) => {
+    const { symptoms, concernType, ageGroup, existingConditions, language = 'english' } = req.body;
+    const data = {
+        symptoms: sanitizeInput(symptoms),
+        concernType: sanitizeInput(concernType),
+        ageGroup: sanitizeInput(ageGroup),
+        existingConditions: sanitizeInput(existingConditions),
+        language: validateLanguage(language)
+    };
 
-        const healthPrompt = `
-        Provide monsoon health guidance for:
-        - Concern Type: ${concernType || 'General monsoon health'}
-        - Symptoms (if any): ${symptoms || 'None specified'}
-        - Age Group: ${ageGroup || 'Adult'}
-        - Existing Conditions: ${existingConditions || 'None'}
-        
-        Include:
-        1. Assessment of the concern
-        2. Immediate care steps
-        3. Prevention measures
-        4. When to see a doctor
-        5. Home remedies (if applicable)
-        6. Dietary recommendations
-        7. Hygiene practices
-        
-        IMPORTANT: Always recommend consulting a healthcare professional for serious symptoms.
-        `;
+    const prompt = `Monsoon health guidance: Concern: ${data.concernType || 'General'}, Symptoms: ${data.symptoms || 'None'}, Age: ${data.ageGroup || 'Adult'}, Conditions: ${data.existingConditions || 'None'}. Include: Assessment, Care, Prevention, When to see doctor, Remedies, Diet, Hygiene.`;
 
-        let systemPrompt = SYSTEM_PROMPTS.health;
-        if (language !== 'english') {
-            systemPrompt += `\n\nIMPORTANT: Respond in ${language}.`;
-        }
+    let systemPrompt = SYSTEM_PROMPTS.health;
+    if (data.language !== 'english') systemPrompt += `\nRespond in ${data.language}.`;
 
-        const completion = await groq.chat.completions.create({
-            messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: healthPrompt }
-            ],
-            model: 'llama-3.3-70b-versatile',
-            temperature: 0.7,
-            max_tokens: 2000,
-            top_p: 1,
-            stream: false
-        });
+    const completion = await groq.chat.completions.create({
+        messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: prompt }],
+        model: 'llama-3.3-70b-versatile',
+        temperature: 0.7,
+        max_tokens: 2000
+    });
 
-        const guidance = completion.choices[0]?.message?.content || 'Unable to generate health guidance.';
+    res.json({
+        success: true,
+        guidance: completion.choices[0]?.message?.content || 'Unable to generate guidance.',
+        concernType: data.concernType,
+        timestamp: new Date().toISOString()
+    });
+}));
 
-        res.json({
-            success: true,
-            guidance,
-            concernType,
-            timestamp: new Date().toISOString()
-        });
+// Weather alerts endpoint
+app.post('/api/weather-alerts', aiLimiter, asyncHandler(async (req, res) => {
+    const { location, weatherData, alertLevel, language = 'english' } = req.body;
+    const data = {
+        location: sanitizeInput(location),
+        weatherData: sanitizeObject(weatherData),
+        alertLevel: sanitizeInput(alertLevel),
+        language: validateLanguage(language)
+    };
 
-    } catch (error) {
-        console.error('Health Guidance API Error:', error);
-        res.status(500).json({
-            error: 'Failed to generate health guidance',
-            message: error.message
-        });
+    const prompt = `Weather analysis: Location: ${data.location || 'Not specified'}, Alert: ${data.alertLevel || 'Normal'}. Provide: Risk Assessment, Actions, 6-Hour Impact, Safety, Activities to Avoid, Improvement Timeline.`;
+
+    let systemPrompt = SYSTEM_PROMPTS.realtime;
+    if (data.language !== 'english') systemPrompt += `\nRespond in ${data.language}.`;
+
+    const completion = await groq.chat.completions.create({
+        messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: prompt }],
+        model: 'llama-3.3-70b-versatile',
+        temperature: 0.6,
+        max_tokens: 1500
+    });
+
+    res.json({
+        success: true,
+        alerts: completion.choices[0]?.message?.content || 'Unable to generate alerts.',
+        location: data.location,
+        timestamp: new Date().toISOString()
+    });
+}));
+
+// Recovery guidance endpoint
+app.post('/api/recovery-guidance', aiLimiter, asyncHandler(async (req, res) => {
+    const { damageType, severity, insuranceStatus, location, language = 'english' } = req.body;
+    const data = {
+        damageType: sanitizeInput(damageType),
+        severity: sanitizeInput(severity),
+        insuranceStatus: sanitizeInput(insuranceStatus),
+        location: sanitizeInput(location),
+        language: validateLanguage(language)
+    };
+
+    const prompt = `Post-monsoon recovery: Damage: ${data.damageType || 'Water damage'}, Severity: ${data.severity || 'Moderate'}, Insurance: ${data.insuranceStatus || 'Unknown'}. Include: Safety Assessment, Documentation, Repair Priority, Government Relief, Services, Timeline, Costs INR.`;
+
+    let systemPrompt = SYSTEM_PROMPTS.recovery;
+    if (data.language !== 'english') systemPrompt += `\nRespond in ${data.language}.`;
+
+    const completion = await groq.chat.completions.create({
+        messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: prompt }],
+        model: 'llama-3.3-70b-versatile',
+        temperature: 0.7,
+        max_tokens: 2500
+    });
+
+    res.json({
+        success: true,
+        guidance: completion.choices[0]?.message?.content || 'Unable to generate guidance.',
+        damageType: data.damageType,
+        timestamp: new Date().toISOString()
+    });
+}));
+
+// Translation endpoint
+app.post('/api/translate', aiLimiter, asyncHandler(async (req, res) => {
+    const { text, targetLanguage, context = 'monsoon safety' } = req.body;
+    
+    if (!text || !targetLanguage) {
+        return res.status(400).json({ error: 'Text and target language required' });
     }
-});
 
-// Real-time weather alerts endpoint
-app.post('/api/weather-alerts', async (req, res) => {
-    try {
-        const {
-            location,
-            weatherData,
-            alertLevel,
-            language = 'english'
-        } = req.body;
+    const sanitizedText = sanitizeInput(text);
+    const validatedLang = validateLanguage(targetLanguage);
 
-        const alertPrompt = `
-        Analyze the current weather situation and provide guidance:
-        - Location: ${location || 'Not specified'}
-        - Weather Data: ${JSON.stringify(weatherData) || 'Not available'}
-        - Alert Level: ${alertLevel || 'Normal'}
-        
-        Provide:
-        1. Current Risk Assessment
-        2. Immediate Actions Required
-        3. Next 6-Hour Forecast Impact
-        4. Safety Recommendations
-        5. Activities to Avoid
-        6. When to Expect Improvement
-        `;
+    const completion = await groq.chat.completions.create({
+        messages: [
+            { role: 'system', content: SYSTEM_PROMPTS.multilingual },
+            { role: 'user', content: `Translate to ${validatedLang}: "${sanitizedText}"` }
+        ],
+        model: 'llama-3.3-70b-versatile',
+        temperature: 0.3,
+        max_tokens: 1500
+    });
 
-        let systemPrompt = SYSTEM_PROMPTS.realtime;
-        if (language !== 'english') {
-            systemPrompt += `\n\nIMPORTANT: Respond in ${language}.`;
-        }
-
-        const completion = await groq.chat.completions.create({
-            messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: alertPrompt }
-            ],
-            model: 'llama-3.3-70b-versatile',
-            temperature: 0.6,
-            max_tokens: 1500,
-            top_p: 1,
-            stream: false
-        });
-
-        const alerts = completion.choices[0]?.message?.content || 'Unable to generate weather alerts.';
-
-        res.json({
-            success: true,
-            alerts,
-            location,
-            timestamp: new Date().toISOString()
-        });
-
-    } catch (error) {
-        console.error('Weather Alerts API Error:', error);
-        res.status(500).json({
-            error: 'Failed to generate weather alerts',
-            message: error.message
-        });
-    }
-});
-
-// Post-monsoon recovery guidance endpoint
-app.post('/api/recovery-guidance', async (req, res) => {
-    try {
-        const {
-            damageType,
-            severity,
-            insuranceStatus,
-            location,
-            language = 'english'
-        } = req.body;
-
-        const recoveryPrompt = `
-        Provide post-monsoon recovery guidance for:
-        - Damage Type: ${damageType || 'General water damage'}
-        - Severity: ${severity || 'Moderate'}
-        - Insurance Status: ${insuranceStatus || 'Unknown'}
-        - Location: ${location || 'Not specified'}
-        
-        Include:
-        1. Immediate Safety Assessment
-        2. Documentation Steps for Insurance
-        3. Priority Repair Sequence
-        4. Government Relief Options
-        5. Professional Services Needed
-        6. Timeline Expectations
-        7. Cost Estimates (INR)
-        8. Mental Health Resources
-        `;
-
-        let systemPrompt = SYSTEM_PROMPTS.recovery;
-        if (language !== 'english') {
-            systemPrompt += `\n\nIMPORTANT: Respond in ${language}.`;
-        }
-
-        const completion = await groq.chat.completions.create({
-            messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: recoveryPrompt }
-            ],
-            model: 'llama-3.3-70b-versatile',
-            temperature: 0.7,
-            max_tokens: 2500,
-            top_p: 1,
-            stream: false
-        });
-
-        const guidance = completion.choices[0]?.message?.content || 'Unable to generate recovery guidance.';
-
-        res.json({
-            success: true,
-            guidance,
-            damageType,
-            timestamp: new Date().toISOString()
-        });
-
-    } catch (error) {
-        console.error('Recovery Guidance API Error:', error);
-        res.status(500).json({
-            error: 'Failed to generate recovery guidance',
-            message: error.message
-        });
-    }
-});
-
-// Multilingual translation endpoint
-app.post('/api/translate', async (req, res) => {
-    try {
-        const {
-            text,
-            targetLanguage,
-            context = 'monsoon safety'
-        } = req.body;
-
-        if (!text || !targetLanguage) {
-            return res.status(400).json({ error: 'Text and target language are required' });
-        }
-
-        const translatePrompt = `
-        Translate the following ${context} information to ${targetLanguage}:
-        
-        "${text}"
-        
-        Ensure:
-        1. Accurate translation maintaining safety-critical information
-        2. Use commonly understood terms
-        3. Preserve formatting if present
-        4. Add phonetic pronunciation for critical terms if helpful
-        `;
-
-        const completion = await groq.chat.completions.create({
-            messages: [
-                { role: 'system', content: SYSTEM_PROMPTS.multilingual },
-                { role: 'user', content: translatePrompt }
-            ],
-            model: 'llama-3.3-70b-versatile',
-            temperature: 0.3,
-            max_tokens: 1500,
-            top_p: 1,
-            stream: false
-        });
-
-        const translation = completion.choices[0]?.message?.content || 'Unable to translate.';
-
-        res.json({
-            success: true,
-            original: text,
-            translation,
-            targetLanguage,
-            timestamp: new Date().toISOString()
-        });
-
-    } catch (error) {
-        console.error('Translation API Error:', error);
-        res.status(500).json({
-            error: 'Failed to translate',
-            message: error.message
-        });
-    }
-});
+    res.json({
+        success: true,
+        original: sanitizedText,
+        translation: completion.choices[0]?.message?.content || 'Unable to translate.',
+        targetLanguage: validatedLang,
+        timestamp: new Date().toISOString()
+    });
+}));
 
 // Emergency SOS endpoint
-app.post('/api/emergency-sos', async (req, res) => {
-    try {
-        const {
-            emergencyType,
-            location,
-            situation,
-            peopleAffected,
-            language = 'english'
-        } = req.body;
+app.post('/api/emergency-sos', emergencyLimiter, asyncHandler(async (req, res) => {
+    const { emergencyType, location, situation, peopleAffected, language = 'english' } = req.body;
+    const data = {
+        emergencyType: sanitizeInput(emergencyType),
+        location: sanitizeInput(location),
+        situation: sanitizeInput(situation),
+        peopleAffected: sanitizeInput(peopleAffected),
+        language: validateLanguage(language)
+    };
 
-        const sosPrompt = `
-        EMERGENCY SITUATION - Provide immediate guidance:
-        - Emergency Type: ${emergencyType || 'Monsoon-related emergency'}
-        - Location: ${location || 'Unknown'}
-        - Situation: ${situation || 'Not described'}
-        - People Affected: ${peopleAffected || 'Unknown'}
-        
-        Provide IMMEDIATE, LIFE-SAVING instructions:
-        1. First Priority Actions (next 5 minutes)
-        2. Emergency Contacts to Call NOW
-        3. What to Avoid
-        4. How to Signal for Help
-        5. First Aid Steps
-        6. Information to Provide to Rescuers
-        
-        BE CONCISE AND CLEAR - This is an emergency.
-        `;
+    const prompt = `EMERGENCY: ${data.emergencyType || 'Monsoon emergency'}, Location: ${data.location || 'Unknown'}, Situation: ${data.situation || 'Not described'}, People: ${data.peopleAffected || 'Unknown'}. Provide IMMEDIATE life-saving instructions: Priority Actions (5 min), Emergency Contacts NOW, What to Avoid, How to Signal Help, First Aid, Info for Rescuers.`;
 
-        let systemPrompt = SYSTEM_PROMPTS.emergency;
-        if (language !== 'english') {
-            systemPrompt += `\n\nIMPORTANT: Respond in ${language}. Be extra clear and simple.`;
-        }
+    let systemPrompt = SYSTEM_PROMPTS.emergency;
+    if (data.language !== 'english') systemPrompt += `\nRespond in ${data.language}. Be extra clear.`;
 
-        const completion = await groq.chat.completions.create({
-            messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: sosPrompt }
-            ],
-            model: 'llama-3.3-70b-versatile',
-            temperature: 0.5,
-            max_tokens: 1500,
-            top_p: 1,
-            stream: false
-        });
+    const completion = await groq.chat.completions.create({
+        messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: prompt }],
+        model: 'llama-3.3-70b-versatile',
+        temperature: 0.5,
+        max_tokens: 1500
+    });
 
-        const instructions = completion.choices[0]?.message?.content || 'Call emergency services immediately: NDRF: 9711077372';
+    res.json({
+        success: true,
+        instructions: completion.choices[0]?.message?.content || 'Call emergency services: NDRF: 9711077372',
+        emergencyContacts: { NDRF: '9711077372', Police: '100', Ambulance: '102', Fire: '101', Disaster: '1078' },
+        timestamp: new Date().toISOString()
+    });
+}));
 
-        res.json({
-            success: true,
-            instructions,
-            emergencyContacts: {
-                NDRF: '9711077372',
-                Police: '100',
-                Ambulance: '102',
-                FireBrigade: '101',
-                DisasterManagement: '1078'
-            },
-            timestamp: new Date().toISOString()
-        });
+// Community plan endpoint
+app.post('/api/community-plan', aiLimiter, asyncHandler(async (req, res) => {
+    const { communityType, population, riskFactors, existingResources, language = 'english' } = req.body;
+    const data = {
+        communityType: sanitizeInput(communityType),
+        population: sanitizeInput(population),
+        riskFactors: sanitizeInput(riskFactors),
+        existingResources: sanitizeInput(existingResources),
+        language: validateLanguage(language)
+    };
 
-    } catch (error) {
-        console.error('Emergency SOS API Error:', error);
-        // Even on error, provide emergency contacts
-        res.status(500).json({
-            error: 'System error - Please call emergency services directly',
-            emergencyContacts: {
-                NDRF: '9711077372',
-                Police: '100',
-                Ambulance: '102',
-                FireBrigade: '101',
-                DisasterManagement: '1078'
-            }
-        });
-    }
-});
+    const prompt = `Community monsoon plan: Type: ${data.communityType || 'Residential'}, Population: ${data.population || 'Not specified'}, Risks: ${data.riskFactors || 'Standard'}, Resources: ${data.existingResources || 'Not specified'}. Include: Alert System, Volunteer Teams, Evacuation Routes, Resource Pooling, Vulnerable Support, Communication, Supplies, Authority Coordination, Recovery Plan.`;
 
-// Community preparedness endpoint
-app.post('/api/community-plan', async (req, res) => {
-    try {
-        const {
-            communityType,
-            population,
-            riskFactors,
-            existingResources,
-            language = 'english'
-        } = req.body;
+    let systemPrompt = SYSTEM_PROMPTS.preparedness + ' Focus on community-level planning.';
+    if (data.language !== 'english') systemPrompt += `\nRespond in ${data.language}.`;
 
-        const communityPrompt = `
-        Create a community-level monsoon preparedness plan:
-        - Community Type: ${communityType || 'Residential colony'}
-        - Approximate Population: ${population || 'Not specified'}
-        - Risk Factors: ${riskFactors || 'Standard monsoon risks'}
-        - Existing Resources: ${existingResources || 'Not specified'}
-        
-        Include:
-        1. Community Alert System Setup
-        2. Volunteer Team Formation
-        3. Evacuation Routes and Assembly Points
-        4. Resource Pooling Plan
-        5. Vulnerable Population Support
-        6. Communication Tree
-        7. Emergency Supply Storage
-        8. Coordination with Local Authorities
-        9. Post-Monsoon Community Recovery Plan
-        `;
+    const completion = await groq.chat.completions.create({
+        messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: prompt }],
+        model: 'llama-3.3-70b-versatile',
+        temperature: 0.7,
+        max_tokens: 3000
+    });
 
-        let systemPrompt = SYSTEM_PROMPTS.preparedness + '\n\nFocus on community-level planning and coordination.';
-        if (language !== 'english') {
-            systemPrompt += `\n\nIMPORTANT: Respond in ${language}.`;
-        }
+    res.json({
+        success: true,
+        plan: completion.choices[0]?.message?.content || 'Unable to generate plan.',
+        communityType: data.communityType,
+        timestamp: new Date().toISOString()
+    });
+}));
 
-        const completion = await groq.chat.completions.create({
-            messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: communityPrompt }
-            ],
-            model: 'llama-3.3-70b-versatile',
-            temperature: 0.7,
-            max_tokens: 3000,
-            top_p: 1,
-            stream: false
-        });
-
-        const plan = completion.choices[0]?.message?.content || 'Unable to generate community plan.';
-
-        res.json({
-            success: true,
-            plan,
-            communityType,
-            timestamp: new Date().toISOString()
-        });
-
-    } catch (error) {
-        console.error('Community Plan API Error:', error);
-        res.status(500).json({
-            error: 'Failed to generate community plan',
-            message: error.message
-        });
-    }
-});
-
-// Serve the main page
+// Serve main page
 app.get('/', (req, res) => {
     res.sendFile(join(__dirname, 'public', 'index.html'));
 });
 
+// Global error handler
+app.use((err, req, res, next) => {
+    logger.error('Unhandled error:', err);
+    res.status(500).json({
+        error: 'Internal server error',
+        message: NODE_ENV === 'development' ? err.message : 'Something went wrong'
+    });
+});
+
+// 404 handler
+app.use((req, res) => {
+    res.status(404).json({ error: 'Not found', message: 'The requested resource was not found' });
+});
+
+// Graceful shutdown
+const gracefulShutdown = (signal) => {
+    logger.info(`${signal} received. Starting graceful shutdown...`);
+    server.close(() => {
+        logger.info('HTTP server closed');
+        cache.close();
+        logger.info('Cache cleared');
+        process.exit(0);
+    });
+    
+    // Force shutdown after 30 seconds
+    setTimeout(() => {
+        logger.error('Forced shutdown after timeout');
+        process.exit(1);
+    }, 30000);
+};
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
 // Start server
-app.listen(PORT, () => {
-    console.log(`
+const server = app.listen(PORT, () => {
+    logger.info(`
     ╔══════════════════════════════════════════════════════════════╗
     ║                                                              ║
     ║   🌧️  MonsoonShield AI - Server Started                      ║
     ║                                                              ║
     ║   Local:    http://localhost:${PORT}                           ║
     ║   API:      http://localhost:${PORT}/api                       ║
+    ║   Health:   http://localhost:${PORT}/api/health                ║
     ║                                                              ║
+    ║   Security: ✅ Helmet, Rate Limiting, XSS Protection         ║
+    ║   Caching:  ✅ Response caching enabled                       ║
+    ║   Logging:  ✅ Winston logger active                          ║
+    ║                                                              ║
+    ║   Environment: ${NODE_ENV}                                    ║
     ║   Powered by Groq AI                                         ║
     ║                                                              ║
     ╚══════════════════════════════════════════════════════════════╝
