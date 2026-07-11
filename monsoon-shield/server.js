@@ -90,14 +90,22 @@ app.use(helmet({
 }));
 
 // CORS configuration
+const defaultOrigins = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'https://monsoon-shield-production.up.railway.app'
+];
+
 const allowedOrigins = process.env.CORS_ORIGIN 
-    ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
-    : ['http://localhost:3000', 'http://127.0.0.1:3000'];
+    ? [...new Set([...defaultOrigins, ...process.env.CORS_ORIGIN.split(',').map(o => o.trim())])]
+    : defaultOrigins;
 
 app.use(cors({
     origin: (origin, callback) => {
+        // Allow requests with no origin (same-origin, mobile apps, curl)
         if (!origin) return callback(null, true);
-        if (allowedOrigins.includes(origin) || NODE_ENV === 'development') {
+        // Allow all origins in development or if origin is in allowed list
+        if (NODE_ENV === 'development' || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
             logger.warn(`Blocked CORS request from origin: ${origin}`);
