@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import request from 'supertest';
 
 // Mock the Groq SDK before importing the app
@@ -71,12 +71,18 @@ vi.mock('winston', async (importOriginal) => {
 
 // Import the app after mocking
 let app;
+let server;
 
 describe('MonsoonShield API Tests', () => {
     beforeAll(async () => {
         // Dynamically import the app after mocks are set up
         const module = await import('../server.js');
         app = module.default;
+    });
+
+    afterAll(async () => {
+        // Give time for any pending operations to complete
+        await new Promise(resolve => setTimeout(resolve, 100));
     });
 
     describe('Health Check Endpoint', () => {
@@ -86,7 +92,7 @@ describe('MonsoonShield API Tests', () => {
             expect(response.status).toBe(200);
             expect(response.body).toHaveProperty('status', 'ok');
             expect(response.body).toHaveProperty('service', 'MonsoonShield API');
-            expect(response.body).toHaveProperty('version', '1.1.0');
+            expect(response.body).toHaveProperty('version', '1.2.0');
             expect(response.body).toHaveProperty('uptime');
             expect(response.body).toHaveProperty('cache');
         });
@@ -100,7 +106,7 @@ describe('MonsoonShield API Tests', () => {
 
             expect(response.status).toBe(400);
             expect(response.body).toHaveProperty('error', 'Invalid request');
-            expect(response.body).toHaveProperty('message', 'Message is required');
+            expect(response.body).toHaveProperty('message', 'Message is required and must be at least 2 characters');
         });
 
         it('should return error when message is too short', async () => {
@@ -110,7 +116,7 @@ describe('MonsoonShield API Tests', () => {
 
             expect(response.status).toBe(400);
             expect(response.body).toHaveProperty('error', 'Invalid request');
-            expect(response.body).toHaveProperty('message', 'Message too short');
+            expect(response.body).toHaveProperty('message', 'Message is required and must be at least 2 characters');
         });
 
         it('should handle chat request with default mode', async () => {
@@ -365,7 +371,7 @@ describe('MonsoonShield API Tests', () => {
                 });
 
             expect(response.status).toBe(400);
-            expect(response.body).toHaveProperty('error', 'Text and target language required');
+            expect(response.body).toHaveProperty('error', 'Invalid request');
         });
 
         it('should return error when target language is missing', async () => {
@@ -376,7 +382,7 @@ describe('MonsoonShield API Tests', () => {
                 });
 
             expect(response.status).toBe(400);
-            expect(response.body).toHaveProperty('error', 'Text and target language required');
+            expect(response.body).toHaveProperty('error', 'Invalid request');
         });
     });
 
@@ -485,8 +491,10 @@ describe('MonsoonShield API Tests', () => {
         it('should return valid timestamp format', async () => {
             const response = await request(app)
                 .post('/api/chat')
-                .send({ message: 'Test message' });
+                .send({ message: 'Test message for timestamp' });
 
+            expect(response.status).toBe(200);
+            expect(response.body).toHaveProperty('timestamp');
             expect(response.body.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
         });
     });

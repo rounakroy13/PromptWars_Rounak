@@ -66,14 +66,20 @@ export const apiConfig = {
 };
 
 /**
+ * Check if running in test environment
+ */
+const isTestEnv = process.env.NODE_ENV === 'test';
+
+/**
  * Rate limiting configuration
+ * Higher limits for test environment to avoid rate limit errors during tests
  * @type {RateLimitConfig}
  */
 export const rateLimitConfig = {
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10) || 60000,
-    maxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS, 10) || 30,
-    aiMaxRequests: 10,
-    emergencyMaxRequests: 20
+    maxRequests: isTestEnv ? 1000 : (parseInt(process.env.RATE_LIMIT_MAX_REQUESTS, 10) || 30),
+    aiMaxRequests: isTestEnv ? 1000 : 10,
+    emergencyMaxRequests: isTestEnv ? 1000 : 20
 };
 
 /**
